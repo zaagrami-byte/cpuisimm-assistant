@@ -1,0 +1,11 @@
+# Arduino UNO / clone CH340
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", SYMLINK+="isimm_arduino", MODE="0666"
+# Arduino UNO authentique (FTDI/Atmega16u2)
+SUBSYSTEM=="tty", ATTRS{idVendor}=="2341", ATTRS{idProduct}=="0043", SYMLINK+="isimm_arduino", MODE="0666"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="2341", ATTRS{idProduct}=="0001", SYMLINK+="isimm_arduino", MODE="0666"
+# ESP32 (CP210x)
+SUBSYSTEM=="tty", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea60", SYMLINK+="isimm_esp32", MODE="0666"
+# ESP32 (CH340)
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", KERNELS!="*:1.0", SYMLINK+="isimm_esp32", MODE="0666"
+# RPLIDAR
+SUBSYSTEM=="tty", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea60", ATTRS{product}=="*CP2102 USB to UART Bridge Controller*", SYMLINK+="isimm_rplidar", MODE="0666"
