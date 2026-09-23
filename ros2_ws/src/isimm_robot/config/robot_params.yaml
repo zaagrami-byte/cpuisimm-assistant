@@ -1,0 +1,60 @@
+rplidar_node:
+  ros__parameters:
+    serial_port: "/dev/isimm_rplidar"
+    serial_baudrate: 115200        # 460800 pour RPLIDAR C1
+    frame_id: "laser"
+    angle_compensate: true
+    scan_mode: "Standard"
+    inverted: false
+
+rf2o_laser_odometry_node:
+  ros__parameters:
+    laser_scan_topic: "/scan"
+    odom_topic: "/odom"
+    publish_tf: true
+    odom_frame: "odom"
+    base_frame: "base_link"
+    init_pose_from_topic: ""
+    freq: 10.0
+    # rf2o estime la pose par recalage de scans -> odométrie LiDAR
+    # (remplace l'odométrie roue absente)
+
+motor_controller_node:
+  ros__parameters:
+    serial_port: "/dev/isimm_arduino"
+    serial_baudrate: 115200
+    wheel_separation: 0.48         # À CALIBRER (m)
+    max_linear_speed: 0.5          # m/s
+    max_angular_speed: 1.5         # rad/s
+    max_pwm: 100
+    min_pwm: 25                    # seuil de démarrage moteur
+    deadband: 0.01                 # m/s
+    command_rate: 20.0             # Hz (heartbeat watchdog)
+    left_invert: false             # true si le moteur gauche tourne à l'envers
+    right_invert: false
+
+esp32_sensor_node:
+  ros__parameters:
+    serial_port: "/dev/isimm_esp32"
+    serial_baudrate: 115200
+    frame_id: "imu_link"
+    range_frame_id: "ultrasonic_link"
+
+safety_node:
+  ros__parameters:
+    cmd_timeout: 0.5               # s sans /cmd_vel -> STOP
+    max_linear_speed: 0.5
+    max_angular_speed: 1.5
+    publish_rate: 20.0
+    monitor_scan: true             # STOP si /scan trop vieux
+    scan_timeout: 1.0
+    min_obstacle_distance: 0.0     # futur ultrasons (m), 0 = désactivé
+
+robot_status_node:
+  ros__parameters:
+    scan_timeout: 2.0
+    imu_timeout: 2.0
+
+robot_state_publisher:
+  ros__parameters:
+    use_sim_time: false

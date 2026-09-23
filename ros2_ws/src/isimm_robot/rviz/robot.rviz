@@ -1,0 +1,127 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Value: true
+      Plane Cell Count: 20
+      Cell Size: 0.5
+      Color: 160; 160; 164
+      Reference Frame: <Fixed Frame>
+    - Class: rviz_default_plugins/TF
+      Name: TF
+      Value: true
+      Marker Scale: 0.3
+      Show Names: true
+      Show Axes: true
+      Show Arrows: true
+    - Class: rviz_default_plugins/RobotModel
+      Name: RobotModel
+      Value: true
+      Description Topic:
+        Value: /robot_description
+      Alpha: 1
+      Visual Enabled: true
+    - Class: rviz_default_plugins/LaserScan
+      Name: LaserScan
+      Value: true
+      Topic:
+        Value: /scan
+        Depth: 5
+      Size (Pixels): 3
+      Color: 255; 0; 0
+      Style: Points
+      Alpha: 1
+      Max Intensity: 4096
+      Min Intensity: 0
+      Max Color: 255; 255; 255
+      Min Color: 0; 0; 0
+      Position Transformer: XYZ
+      Selectable: true
+      Unreliable: false
+    - Class: rviz_default_plugins/Map
+      Name: Map
+      Value: true
+      Topic:
+        Value: /map
+        Depth: 1
+      Color Scheme: map
+      Alpha: 0.7
+      Draw Behind: false
+      Use Timestamp: false
+    - Class: rviz_default_plugins/Map
+      Name: GlobalCostmap
+      Value: true
+      Topic:
+        Value: /global_costmap/costmap
+        Depth: 1
+      Color Scheme: costmap
+      Alpha: 0.7
+      Draw Behind: false
+    - Class: rviz_default_plugins/Map
+      Name: LocalCostmap
+      Value: true
+      Topic:
+        Value: /local_costmap/costmap
+        Depth: 1
+      Color Scheme: costmap
+      Alpha: 0.7
+      Draw Behind: false
+  Global Options:
+    Background Color: 48; 48; 48
+    Fixed Frame: map
+    Frame Rate: 30
+  Name: root
+  Tools:
+    - Class: rviz_default_plugins/SetInitialPose
+      Name: 2D Pose Estimate
+      Topic:
+        Value: /initialpose
+      Covariance x: 0.25
+      Covariance y: 0.25
+      Covariance yaw: 0.06853891909122467
+    - Class: rviz_default_plugins/SetGoal
+      Name: 2D Nav Goal
+      Topic:
+        Value: /goal_pose
+    - Class: rviz_default_plugins/Measure
+      Name: Measure
+    - Class: rviz_default_plugins/Select
+      Name: Select
+    - Class: rviz_default_plugins/MoveCamera
+      Name: MoveCamera
+  Value: true
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 12
+      Focal Point:
+        X: 0
+        Y: 0
+        Z: 0
+      Focal Shape Fixed Size: true
+      Focal Shape Size: 0.05
+      Invert Z Axis: false
+      Name: Current View
+      Near Clip Distance: 0.01
+      Pitch: 0.785
+      Target Frame: <Fixed Frame>
+      Yaw: 0.785
+    Saved: ~
+Window Geometry:
+  Displays:
+    collapsed: false
+  Height: 800
+  Hide Left Dock: false
+  Hide Right Dock: true
+  QMainWindow State: 000000ff00000000fd000000010000000000000156000002b4fc0200000001fb000000100044006900730070006c006100790073010000003d000002b4000000c900ffffff000002b4000002b400000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  Selection:
+    collapsed: false
+  Views:
+    collapsed: false
+  Width: 1200
+  X: 60
+  Y: 60
