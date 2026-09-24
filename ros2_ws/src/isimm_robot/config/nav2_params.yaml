@@ -25,7 +25,7 @@ controller_server:
 
     failure_tolerance: 0.3
 
-    progress_checker_plugin: "progress_checker"
+    progress_checker_plugins: ["progress_checker"]
     goal_checker_plugins: ["general_goal_checker"]
     controller_plugins: ["FollowPath"]
 
