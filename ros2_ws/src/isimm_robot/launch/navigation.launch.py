@@ -3,6 +3,7 @@ import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
@@ -16,22 +17,27 @@ def generate_launch_description():
     nav2_bringup = get_package_share_directory('nav2_bringup')
 
     map_file = LaunchConfiguration('map_file')
+    use_rviz = LaunchConfiguration('use_rviz')
 
     return LaunchDescription([
         DeclareLaunchArgument(
             'map_file', default_value=os.path.expanduser('~/maps/isimm_map.posegraph'),
             description='Fichier .posegraph sauvegardé par slam_toolbox'),
 
+        # RViz OPTIONNEL : la Pi 4 fonctionne sans interface graphique.
+        DeclareLaunchArgument(
+            'use_rviz', default_value='false',
+            description='Lancer RViz (à éviter sur la Raspberry Pi)'),
+
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 os.path.join(pkg, 'launch', 'robot.launch.py'))),
 
-        # localisation : slam_toolbox charge la posegraph et publie map->odom + /map
+        # localisation : slam_toolbox charge la posegraph, publie map->odom + /map
         Node(package='slam_toolbox', executable='async_slam_toolbox_node',
              name='slam_toolbox', parameters=[loc_params, {'map_file_name': map_file}],
              output='screen'),
 
-        # Nav2 complet (lifecycle managers inclus dans navigation_launch.py)
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 os.path.join(nav2_bringup, 'launch', 'navigation_launch.py')),
@@ -39,5 +45,6 @@ def generate_launch_description():
                               'use_sim_time': 'false'}.items()),
 
         Node(package='rviz2', executable='rviz2',
+             condition=IfCondition(use_rviz),
              arguments=['-d', rviz_cfg], output='screen'),
     ])
