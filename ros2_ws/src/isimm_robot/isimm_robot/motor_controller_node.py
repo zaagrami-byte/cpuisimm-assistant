@@ -13,6 +13,12 @@ Conversion différentielle :
 Envoie les commandes à command_rate Hz, y compris des commandes nulles :
 cela sert de heartbeat pour le watchdog Arduino. Si le port série tombe,
 les envois cessent -> l'Arduino freine seul après CMD_TIMEOUT_MS.
+
+Sécurité additionnelle (indépendante du watchdog Arduino) : si aucune
+commande /safe_cmd_vel valide n'a été reçue depuis plus de cmd_timeout
+secondes, la commande envoyée est forcée à 0 (BRAKE) même si le port
+série reste ouvert. Cela couvre le cas où safety_node cesserait de
+publier sans que le lien série soit coupé.
 """
 
 import math
@@ -39,6 +45,7 @@ class MotorControllerNode(Node):
         self.declare_parameter('min_pwm', 60)               # sous ce PWM le moteur ne tourne pas
         self.declare_parameter('deadband', 0.01)            # m/s sous lequel on considère 0
         self.declare_parameter('command_rate', 20.0)        # Hz (heartbeat)
+        self.declare_parameter('cmd_timeout', 0.5)          # s sans /safe_cmd_vel -> BRAKE local
         self.declare_parameter('left_invert', False)
         self.declare_parameter('right_invert', False)
 
@@ -50,6 +57,7 @@ class MotorControllerNode(Node):
         self.max_pwm = int(self.get_parameter('max_pwm').value)
         self.min_pwm = int(self.get_parameter('min_pwm').value)
         self.deadband = float(self.get_parameter('deadband').value)
+        self.cmd_timeout = float(self.get_parameter('cmd_timeout').value)
         self.left_invert = bool(self.get_parameter('left_invert').value)
         self.right_invert = bool(self.get_parameter('right_invert').value)
 
@@ -59,7 +67,7 @@ class MotorControllerNode(Node):
         self._lock = threading.Lock()
         self._cmd_v = 0.0
         self._cmd_w = 0.0
-        self._last_cmd_time = 0.0
+        self._last_cmd_time = None
         self._ser = None
 
         self._open_serial()
@@ -70,7 +78,8 @@ class MotorControllerNode(Node):
 
         self.get_logger().info(
             f'Motor controller prêt : {self.port}@{self.baud}, '
-            f'L={self.wheel_sep} m, v_max={self.max_lin} m/s')
+            f'L={self.wheel_sep} m, v_max={self.max_lin} m/s, '
+            f'cmd_timeout={self.cmd_timeout} s')
 
     # ---------- série ----------
     def _open_serial(self):
@@ -95,6 +104,9 @@ class MotorControllerNode(Node):
 
     # ---------- commande ----------
     def _cmd_cb(self, msg: Twist):
+        if not (math.isfinite(msg.linear.x) and math.isfinite(msg.angular.z)):
+            self.get_logger().error('Commande /safe_cmd_vel invalide (NaN/Inf) ignorée.')
+            return
         with self._lock:
             self._cmd_v = msg.linear.x
             self._cmd_w = msg.angular.z
@@ -121,6 +133,14 @@ class MotorControllerNode(Node):
             return
         with self._lock:
             v, w = self._cmd_v, self._cmd_w
+            last_cmd_time = self._last_cmd_time
+
+        # Sécurité locale indépendante du watchdog Arduino : commande trop
+        # ancienne (ou jamais reçue) -> on force l'arrêt côté Pi, sans
+        # attendre que safety_node ou le lien série tombe.
+        now = self.get_clock().now().nanoseconds * 1e-9
+        if last_cmd_time is None or (now - last_cmd_time) > self.cmd_timeout:
+            v, w = 0.0, 0.0
 
         # clamp
         v = max(-self.max_lin, min(self.max_lin, v))

@@ -1,11 +1,79 @@
-# Arduino UNO / clone CH340
-SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", SYMLINK+="isimm_arduino", MODE="0666"
-# Arduino UNO authentique (FTDI/Atmega16u2)
+# ISIMM ROBOT — règles udev
+#
+# PROBLÈME AVEC LES RÈGLES PRÉCÉDENTES (basées uniquement sur VID:PID) :
+#   - Arduino UNO clone (CH340, 1a86:7523) ET la variante ESP32/CH340
+#     partagent EXACTEMENT le même VID:PID (1a86:7523). La règle ESP32
+#     tentait de les distinguer avec KERNELS!="*:1.0", ce qui est fragile
+#     et dépend du firmware/carte exacts (non garanti stable).
+#   - Le CP210x de l'ESP32 (10c4:ea60) ET le CP2102 utilisé par certains
+#     RPLIDAR (10c4:ea60) partagent aussi le même VID:PID. Deux règles
+#     avec le même VID:PID matchent le MÊME device -> udev applique les
+#     deux SYMLINK, donc /dev/isimm_esp32 et /dev/isimm_rplidar peuvent
+#     tous les deux pointer vers un seul et même port, selon quel
+#     périphérique est branché en premier.
+#
+# Le repository ne contient pas les numéros de série USB des cartes
+# réellement utilisées : ils NE SONT PAS inventés ici. Pour rendre les
+# 3 périphériques identifiables de façon stable, il FAUT récupérer le
+# numéro de série (ATTRS{serial}) de CHAQUE carte physique et compléter
+# les règles ci-dessous.
+#
+# ---------------------------------------------------------------------
+# COMMANDES À EXÉCUTER (une carte branchée à la fois, dans cet ordre) :
+#
+#   1) Débrancher tout, ne brancher QUE l'Arduino UNO :
+#        ls /dev/ttyUSB* /dev/ttyACM* 2>/dev/null
+#        udevadm info -a -n /dev/ttyUSB0 | grep -E 'idVendor|idProduct|serial' | head -5
+#      (remplacer ttyUSB0 par le device réellement listé, ex. ttyACM0
+#       pour un Arduino UNO officiel FTDI)
+#
+#   2) Débrancher l'Arduino, ne brancher QUE l'ESP32, refaire la même
+#      commande sur le nouveau /dev/ttyUSBx.
+#
+#   3) Débrancher l'ESP32, ne brancher QUE le RPLIDAR, refaire la même
+#      commande.
+#
+#   Noter le ATTRS{serial}=="..." obtenu pour chacun (si le champ
+#   "serial" est vide/absent pour une carte, voir la note en bas de
+#   fichier : c'est courant sur certains clones CH340 bon marché).
+#
+# ---------------------------------------------------------------------
+# GABARIT DE RÈGLES — remplacer <SERIAL_ARDUINO>, <SERIAL_ESP32>,
+# <SERIAL_RPLIDAR> par les valeurs obtenues ci-dessus.
+
+# --- Arduino UNO (CH340 générique, 1a86:7523) ---
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", ATTRS{serial}=="<SERIAL_ARDUINO>", SYMLINK+="isimm_arduino", MODE="0666"
+# --- Arduino UNO authentique (Atmega16u2, 2341:0043 ou 2341:0001) ---
+# Ces PID sont propres à l'Arduino officiel (pas de collision connue) :
+# règle VID:PID seule suffisante si un seul appareil de ce type est branché.
 SUBSYSTEM=="tty", ATTRS{idVendor}=="2341", ATTRS{idProduct}=="0043", SYMLINK+="isimm_arduino", MODE="0666"
 SUBSYSTEM=="tty", ATTRS{idVendor}=="2341", ATTRS{idProduct}=="0001", SYMLINK+="isimm_arduino", MODE="0666"
-# ESP32 (CP210x)
-SUBSYSTEM=="tty", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea60", SYMLINK+="isimm_esp32", MODE="0666"
-# ESP32 (CH340)
-SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", KERNELS!="*:1.0", SYMLINK+="isimm_esp32", MODE="0666"
-# RPLIDAR
-SUBSYSTEM=="tty", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea60", ATTRS{product}=="*CP2102 USB to UART Bridge Controller*", SYMLINK+="isimm_rplidar", MODE="0666"
+
+# --- ESP32 (CP210x, 10c4:ea60) — DOIT être différencié du RPLIDAR ---
+SUBSYSTEM=="tty", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea60", ATTRS{serial}=="<SERIAL_ESP32>", SYMLINK+="isimm_esp32", MODE="0666"
+# --- ESP32 (CH340, 1a86:7523) — DOIT être différencié de l'Arduino ---
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", ATTRS{serial}=="<SERIAL_ESP32>", SYMLINK+="isimm_esp32", MODE="0666"
+
+# --- RPLIDAR (CP2102, 10c4:ea60) — DOIT être différencié de l'ESP32 ---
+SUBSYSTEM=="tty", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea60", ATTRS{serial}=="<SERIAL_RPLIDAR>", SYMLINK+="isimm_rplidar", MODE="0666"
+
+# ---------------------------------------------------------------------
+# SI ATTRS{serial} EST VIDE pour une carte (fréquent sur les clones
+# CH340 sans EEPROM série programmé) :
+#   - Impossible de la distinguer de façon fiable par udev seul.
+#   - Solutions possibles (à choisir manuellement, non appliquées ici
+#     car elles dépassent l'information disponible dans le repo) :
+#       a) reprogrammer un numéro de série unique dans l'EEPROM du CH340
+#          (outil ch341ser / logiciel constructeur), puis relire avec
+#          la commande udevadm ci-dessus ;
+#       b) utiliser KERNELS=="<port_usb_physique>" (ex. "1-1.2") si les
+#          cartes restent branchées sur les mêmes ports USB physiques du
+#          Raspberry Pi en permanence — fragile si un câble est déplacé ;
+#       c) remplacer le clone CH340 sans série par une carte qui expose
+#          un serial unique.
+#
+# Après modification de ce fichier :
+#   sudo cp 99-isimm-robot.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules
+#   sudo udevadm trigger
+#   ls -l /dev/isimm_arduino /dev/isimm_esp32 /dev/isimm_rplidar

@@ -23,13 +23,14 @@ motor_controller_node:
   ros__parameters:
     serial_port: "/dev/isimm_arduino"
     serial_baudrate: 115200
-    wheel_separation: 0.48         # À CALIBRER (m)
+    wheel_separation: 0.48         # validé (m)
     max_linear_speed: 0.5          # m/s
     max_angular_speed: 1.5         # rad/s
-    max_pwm: 100
+    max_pwm: 100                   # validé pour les premiers tests physiques - NE PAS AUGMENTER
     min_pwm: 25                    # seuil de démarrage moteur
     deadband: 0.01                 # m/s
-    command_rate: 20.0             # Hz (heartbeat watchdog)
+    command_rate: 20.0             # Hz (heartbeat watchdog Arduino)
+    cmd_timeout: 0.5                # s sans /safe_cmd_vel -> BRAKE local (indépendant du watchdog Arduino)
     left_invert: false             # true si le moteur gauche tourne à l'envers
     right_invert: false
 
@@ -46,7 +47,7 @@ safety_node:
     max_linear_speed: 0.5
     max_angular_speed: 1.5
     publish_rate: 20.0
-    monitor_scan: true             # STOP si /scan trop vieux
+    monitor_scan: true             # STOP si /scan absent ou trop vieux
     scan_timeout: 1.0
     min_obstacle_distance: 0.0     # futur ultrasons (m), 0 = désactivé
 

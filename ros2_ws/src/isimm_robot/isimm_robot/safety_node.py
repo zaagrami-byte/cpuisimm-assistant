@@ -6,7 +6,8 @@ Position : Nav2 (/cmd_vel) -> [safety_node] -> /safe_cmd_vel -> motor_controller
 Responsabilités :
   - arrêt d'urgence logiciel VERROUILLÉ (/emergency_stop, std_msgs/Bool)
   - timeout de /cmd_vel (si Nav2 ne publie plus -> STOP)
-  - surveillance du LiDAR (/scan trop vieux -> STOP) [peut être désactivée]
+  - surveillance du LiDAR (/scan absent ou trop vieux -> STOP) [peut être désactivée]
+  - rejet des commandes invalides (NaN/Inf -> STOP)
   - limitation des vitesses
   - publication continue à publish_rate Hz (le moteur doit toujours
     recevoir quelque chose, même un STOP répété)
@@ -14,6 +15,8 @@ Responsabilités :
 Extension ultrasons prévue : brancher /range/* -> ajouter une condition
 dans _check_sensors() sans toucher au reste.
 """
+
+import math
 
 import rclpy
 from rclpy.node import Node
@@ -62,6 +65,11 @@ class SafetyNode(Node):
         self.get_logger().info('Safety node actif : /cmd_vel -> /safe_cmd_vel')
 
     def _cmd_cb(self, msg: Twist):
+        # Commande invalide (NaN/Inf) -> ignorée, le timeout /cmd_vel s'en
+        # chargera et déclenchera STOP si aucune commande valide ne suit.
+        if not (math.isfinite(msg.linear.x) and math.isfinite(msg.angular.z)):
+            self.get_logger().error('Commande /cmd_vel invalide (NaN/Inf) ignorée.')
+            return
         self._last_cmd = msg
         self._last_cmd_time = self.get_clock().now()
 
@@ -84,7 +92,10 @@ class SafetyNode(Node):
             return 'NO_CMD_YET'
         if (now - self._last_cmd_time) > Duration(seconds=self.cmd_timeout):
             return 'CMD_TIMEOUT'
-        if self.monitor_scan and self._last_scan_time is not None:
+        if self.monitor_scan:
+            # Absence totale de /scan == information vitale manquante == jamais sûr.
+            if self._last_scan_time is None:
+                return 'NO_SCAN_YET'
             if (now - self._last_scan_time) > Duration(seconds=self.scan_timeout):
                 return 'SCAN_TIMEOUT'
         if self.min_obstacle_distance > 0.0 and self._range_min < self.min_obstacle_distance:
@@ -99,7 +110,7 @@ class SafetyNode(Node):
             out.angular.z = max(-self.max_ang, min(self.max_ang, self._last_cmd.angular.z))
         else:
             self._rate_limited_log.sleep()  # écarte les logs
-            if reason != 'NO_CMD_YET':
+            if reason not in ('NO_CMD_YET', 'NO_SCAN_YET'):
                 self.get_logger().warn(f'Blocage sécurité : {reason}')
         self.pub.publish(out)
 

@@ -22,6 +22,8 @@ static const float   DEG2RAD       = 0.017453292519943f;
 static const unsigned long SEND_PERIOD_MS = 50;  // 20 Hz
 unsigned long lastSend = 0;
 
+bool mpuOk = false;  // état de santé du capteur, mis à jour par mpuPresent()
+
 bool initMPU() {
   Wire.beginTransmission(MPU_ADDR);
   Wire.write(0x6B);               // registre PWR_MGMT_1
@@ -35,12 +37,22 @@ bool initMPU() {
   return (Wire.available() == 1) && (Wire.read() == 0x68);
 }
 
-void readMPU(int16_t &ax, int16_t &ay, int16_t &az,
+// Vérifie que le MPU répond toujours (WHO_AM_I) sans le réinitialiser.
+bool mpuPresent() {
+  Wire.beginTransmission(MPU_ADDR);
+  Wire.write(0x75);
+  if (Wire.endTransmission(false) != 0) return false;
+  Wire.requestFrom((int)MPU_ADDR, 1, true);
+  return (Wire.available() == 1) && (Wire.read() == 0x68);
+}
+
+bool readMPU(int16_t &ax, int16_t &ay, int16_t &az,
              int16_t &gx, int16_t &gy, int16_t &gz, int16_t &temp) {
   Wire.beginTransmission(MPU_ADDR);
   Wire.write(0x3B);               // ACCEL_XOUT_H
-  Wire.endTransmission(false);
-  Wire.requestFrom((int)MPU_ADDR, 14, true);
+  if (Wire.endTransmission(false) != 0) return false;
+  uint8_t n = Wire.requestFrom((int)MPU_ADDR, 14, true);
+  if (n != 14) return false;      // trame I2C incomplète -> on n'émet rien de faux
   ax   = (int16_t)(Wire.read() << 8 | Wire.read());
   ay   = (int16_t)(Wire.read() << 8 | Wire.read());
   az   = (int16_t)(Wire.read() << 8 | Wire.read());
@@ -48,41 +60,44 @@ void readMPU(int16_t &ax, int16_t &ay, int16_t &az,
   gx   = (int16_t)(Wire.read() << 8 | Wire.read());
   gy   = (int16_t)(Wire.read() << 8 | Wire.read());
   gz   = (int16_t)(Wire.read() << 8 | Wire.read());
+  return true;
 }
 
 void setup() {
   Serial.begin(115200);
   Wire.begin(SDA_PIN, SCL_PIN);
   Wire.setClock(400000);
-  if (initMPU()) {
-    Serial.println("READY");
-  } else {
-    Serial.println("E,MPU_FAIL");
-  }
+  mpuOk = initMPU();
+  Serial.println(mpuOk ? "READY" : "E,MPU_FAIL");
   lastSend = millis();
 }
 
 void loop() {
-  if (!initMPU_check()) { /* voir ci-dessous */ }
-
   unsigned long now = millis();
   if (now - lastSend < SEND_PERIOD_MS) return;
   lastSend = now;
 
   // Réessaie l'init MPU s'il a échoué (revient tout seul si câble/I2C revient)
-  Wire.beginTransmission(MPU_ADDR);
-  Wire.write(0x75);
-  Wire.endTransmission(false);
-  Wire.requestFrom((int)MPU_ADDR, 1, true);
-  if (!(Wire.available() == 1 && Wire.read() == 0x68)) {
+  if (!mpuOk) {
+    mpuOk = initMPU();
+    if (!mpuOk) {
+      Serial.println("E,MPU_FAIL");
+      return;
+    }
+  }
+
+  if (!mpuPresent()) {
+    mpuOk = false;
     Serial.println("E,MPU_FAIL");
-    delay(1000);
-    initMPU();
     return;
   }
 
   int16_t ax, ay, az, gx, gy, gz, temp;
-  readMPU(ax, ay, az, gx, gy, gz, temp);
+  if (!readMPU(ax, ay, az, gx, gy, gz, temp)) {
+    mpuOk = false;
+    Serial.println("E,MPU_FAIL");
+    return;
+  }
 
   float fax = ax / ACC_SCALE * 9.80665f;
   float fay = ay / ACC_SCALE * 9.80665f;
