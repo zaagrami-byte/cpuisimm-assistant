@@ -2,7 +2,7 @@ rplidar_node:
   ros__parameters:
     serial_port: "/dev/isimm_rplidar"
     serial_baudrate: 115200        # 460800 pour RPLIDAR C1
-    frame_id: "laser"
+    frame_id: "laser_link"
     angle_compensate: true
     scan_mode: "Standard"
     inverted: false

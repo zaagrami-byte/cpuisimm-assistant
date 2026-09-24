@@ -46,3 +46,8 @@ Thumbs.db
 *.bag
 *.db3
 *.mcap
+
+# Local ROS 2 workspace generated directories
+build/
+install/
+log/

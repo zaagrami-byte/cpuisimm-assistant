@@ -25,7 +25,7 @@ def generate_launch_description():
         Node(package='robot_state_publisher', executable='robot_state_publisher',
              parameters=[robot_description, params], output='screen'),
 
-        Node(package='rplidar_ros', executable='rplidar_node',
+        Node(package='rplidar_ros', executable='rplidar_composition',
              name='rplidar_node', parameters=[params], output='screen'),
 
         Node(package='rf2o_laser_odometry', executable='rf2o_laser_odometry_node',
