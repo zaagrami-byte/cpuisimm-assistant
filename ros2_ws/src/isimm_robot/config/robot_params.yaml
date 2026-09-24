@@ -1,7 +1,7 @@
 rplidar_node:
   ros__parameters:
     serial_port: "/dev/isimm_rplidar"
-    serial_baudrate: 115200        # 460800 pour RPLIDAR C1
+    serial_baudrate: 115200        # 460800 pour RPLIDAR C1 (NON VERIFIÉ : dépend du modèle exact du kit 2BTrading)
     frame_id: "laser_link"
     angle_compensate: true
     scan_mode: "Standard"
@@ -9,29 +9,29 @@ rplidar_node:
 
 rf2o_laser_odometry_node:
   ros__parameters:
+    # NOMS RÉELS DES PARAMÈTRES (lus dans CLaserOdometry2DNode.h) :
     laser_scan_topic: "/scan"
     odom_topic: "/odom"
     publish_tf: true
-    odom_frame: "odom"
-    base_frame: "base_link"
+    odom_frame_id: "odom"
+    base_frame_id: "base_link"
     init_pose_from_topic: ""
     freq: 10.0
-    # rf2o estime la pose par recalage de scans -> odométrie LiDAR
-    # (remplace l'odométrie roue absente)
 
 motor_controller_node:
   ros__parameters:
     serial_port: "/dev/isimm_arduino"
     serial_baudrate: 115200
-    wheel_separation: 0.48         # validé (m)
-    max_linear_speed: 0.5          # m/s
-    max_angular_speed: 1.5         # rad/s
+    wheel_separation: 0.48         # validé (m) — DOIT correspondre à l'URDF
+    max_linear_speed: 0.5
+    max_angular_speed: 1.5
     max_pwm: 100                   # validé pour les premiers tests physiques - NE PAS AUGMENTER
-    min_pwm: 25                    # seuil de démarrage moteur
-    deadband: 0.01                 # m/s
+    min_pwm: 25
+    deadband: 0.01
     command_rate: 20.0             # Hz (heartbeat watchdog Arduino)
-    cmd_timeout: 0.5                # s sans /safe_cmd_vel -> BRAKE local (indépendant du watchdog Arduino)
-    left_invert: false             # true si le moteur gauche tourne à l'envers
+    cmd_timeout: 0.5
+    retry_period: 5.0
+    left_invert: false
     right_invert: false
 
 esp32_sensor_node:
@@ -40,16 +40,18 @@ esp32_sensor_node:
     serial_baudrate: 115200
     frame_id: "imu_link"
     range_frame_id: "ultrasonic_link"
+    reconnect_period: 5.0
 
 safety_node:
   ros__parameters:
-    cmd_timeout: 0.5               # s sans /cmd_vel -> STOP
+    cmd_timeout: 0.5
     max_linear_speed: 0.5
     max_angular_speed: 1.5
     publish_rate: 20.0
-    monitor_scan: true             # STOP si /scan absent ou trop vieux
+    monitor_scan: true
     scan_timeout: 1.0
-    min_obstacle_distance: 0.0     # futur ultrasons (m), 0 = désactivé
+    min_obstacle_distance: 0.0
+    warn_period: 5.0               # log non bloquant
 
 robot_status_node:
   ros__parameters:
