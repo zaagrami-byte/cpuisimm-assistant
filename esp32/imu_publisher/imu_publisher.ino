@@ -1,115 +1,229 @@
 /**
- * ISIMM ROBOT — ESP32 : acquisition capteurs.
- * V1 : MPU6050 (I2C). Architecture prête pour ultrasons futurs.
+ * ISIMM ROBOT — ESP32 Sensor Node
  *
- * Protocole série USB (115200) :
- *   Boot : "READY"
- *   20 Hz : "I,<ax>,<ay>,<az>,<gx>,<gy>,<gz>,<temp>\n"
- *      a* en m/s^2 (float), g* en rad/s (float), temp en °C
- *   Futur : "U,<fl>,<fr>,<rl>,<rr>"  (distances ultrasons en mètres)
- *   Erreur init MPU : "E,MPU_FAIL" puis nouvelle tentative à 1 Hz.
+ * MPU6050 avec bibliothèque Adafruit.
+ *
+ * Connexion :
+ *   MPU6050 VCC -> ESP32 3.3V
+ *   MPU6050 GND -> ESP32 GND
+ *   MPU6050 SDA -> ESP32 GPIO 21
+ *   MPU6050 SCL -> ESP32 GPIO 22
+ *
+ * Protocole série USB : 115200 bauds
+ *
+ * Boot :
+ *   READY
+ *
+ * IMU :
+ *   I,<ax>,<ay>,<az>,<gx>,<gy>,<gz>,<temp>
+ *
+ * Unités :
+ *   accélération : m/s²
+ *   vitesse angulaire : rad/s
+ *   température : °C
+ *
+ * Ultrasons futurs :
+ *   U,<fl>,<fr>,<rl>,<rr>
  */
 
 #include <Wire.h>
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_Sensor.h>
 
-static const uint8_t MPU_ADDR      = 0x68;
-static const int     SDA_PIN       = 21;
-static const int     SCL_PIN       = 22;
-static const float   ACC_SCALE     = 16384.0f;  // LSB par g (±2g)
-static const float   GYRO_SCALE    = 131.0f;    // LSB par °/s (±250°/s)
-static const float   DEG2RAD       = 0.017453292519943f;
+static const int SDA_PIN = 21;
+static const int SCL_PIN = 22;
 
 static const unsigned long SEND_PERIOD_MS = 50;  // 20 Hz
-unsigned long lastSend = 0;
 
-bool mpuOk = false;  // état de santé du capteur, mis à jour par mpuPresent()
+Adafruit_MPU6050 mpu;
+
+unsigned long lastSend = 0;
+bool mpuOk = false;
+
+
+/* =========================================================
+ * INITIALISATION MPU6050
+ * ========================================================= */
 
 bool initMPU() {
-  Wire.beginTransmission(MPU_ADDR);
-  Wire.write(0x6B);               // registre PWR_MGMT_1
-  Wire.write(0x00);               // réveil
-  if (Wire.endTransmission(true) != 0) return false;
+
+  Serial.println("INIT_MPU");
+
+  if (!mpu.begin()) {
+    Serial.println("E,MPU_FAIL");
+    return false;
+  }
+
+  /*
+   * Accéléromètre ±2G
+   *
+   * Le robot est mobile mais ±2G suffit normalement
+   * pour les accélérations classiques.
+   */
+  mpu.setAccelerometerRange(MPU6050_RANGE_2_G);
+
+  /*
+   * Gyroscope ±250 deg/s
+   */
+  mpu.setGyroRange(MPU6050_RANGE_250_DEG);
+
+  /*
+   * Filtre passe-bas.
+   * 21 Hz est adapté à une utilisation robotique
+   * avec publication IMU à 20 Hz.
+   */
+  mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
+
   delay(100);
-  Wire.beginTransmission(MPU_ADDR);
-  Wire.write(0x75);               // WHO_AM_I
-  Wire.endTransmission(false);
-  Wire.requestFrom((int)MPU_ADDR, 1, true);
-  return (Wire.available() == 1) && (Wire.read() == 0x68);
-}
 
-// Vérifie que le MPU répond toujours (WHO_AM_I) sans le réinitialiser.
-bool mpuPresent() {
-  Wire.beginTransmission(MPU_ADDR);
-  Wire.write(0x75);
-  if (Wire.endTransmission(false) != 0) return false;
-  Wire.requestFrom((int)MPU_ADDR, 1, true);
-  return (Wire.available() == 1) && (Wire.read() == 0x68);
-}
+  Serial.println("MPU_OK");
 
-bool readMPU(int16_t &ax, int16_t &ay, int16_t &az,
-             int16_t &gx, int16_t &gy, int16_t &gz, int16_t &temp) {
-  Wire.beginTransmission(MPU_ADDR);
-  Wire.write(0x3B);               // ACCEL_XOUT_H
-  if (Wire.endTransmission(false) != 0) return false;
-  uint8_t n = Wire.requestFrom((int)MPU_ADDR, 14, true);
-  if (n != 14) return false;      // trame I2C incomplète -> on n'émet rien de faux
-  ax   = (int16_t)(Wire.read() << 8 | Wire.read());
-  ay   = (int16_t)(Wire.read() << 8 | Wire.read());
-  az   = (int16_t)(Wire.read() << 8 | Wire.read());
-  temp = (int16_t)(Wire.read() << 8 | Wire.read());
-  gx   = (int16_t)(Wire.read() << 8 | Wire.read());
-  gy   = (int16_t)(Wire.read() << 8 | Wire.read());
-  gz   = (int16_t)(Wire.read() << 8 | Wire.read());
   return true;
 }
 
+
+/* =========================================================
+ * SETUP
+ * ========================================================= */
+
 void setup() {
+
   Serial.begin(115200);
+
+  delay(500);
+
+  /*
+   * I2C ESP32
+   */
   Wire.begin(SDA_PIN, SCL_PIN);
-  Wire.setClock(400000);
+
+  /*
+   * 100 kHz pour maximiser la robustesse.
+   * On pourra passer à 400 kHz plus tard.
+   */
+  Wire.setClock(100000);
+
+  /*
+   * Initialisation MPU6050
+   */
   mpuOk = initMPU();
-  Serial.println(mpuOk ? "READY" : "E,MPU_FAIL");
+
+  if (mpuOk) {
+    Serial.println("READY");
+  } else {
+    Serial.println("E,MPU_FAIL");
+  }
+
   lastSend = millis();
 }
 
+
+/* =========================================================
+ * LOOP
+ * ========================================================= */
+
 void loop() {
+
   unsigned long now = millis();
-  if (now - lastSend < SEND_PERIOD_MS) return;
+
+  /*
+   * Publication à 20 Hz
+   */
+  if (now - lastSend < SEND_PERIOD_MS) {
+    return;
+  }
+
   lastSend = now;
 
-  // Réessaie l'init MPU s'il a échoué (revient tout seul si câble/I2C revient)
+
+  /* ---------------------------------------------------------
+   * Si le MPU n'a pas été initialisé, on réessaie.
+   * --------------------------------------------------------- */
+
   if (!mpuOk) {
+
     mpuOk = initMPU();
+
     if (!mpuOk) {
-      Serial.println("E,MPU_FAIL");
+      delay(1000);
       return;
     }
+
+    Serial.println("READY");
   }
 
-  if (!mpuPresent()) {
+
+  /* ---------------------------------------------------------
+   * Lecture MPU6050
+   * --------------------------------------------------------- */
+
+  sensors_event_t acceleration;
+  sensors_event_t gyro;
+  sensors_event_t temperature;
+
+  mpu.getEvent(
+    &acceleration,
+    &gyro,
+    &temperature
+  );
+
+
+  /* ---------------------------------------------------------
+   * Vérification basique
+   * --------------------------------------------------------- */
+
+  if (!isfinite(acceleration.acceleration.x) ||
+      !isfinite(acceleration.acceleration.y) ||
+      !isfinite(acceleration.acceleration.z) ||
+      !isfinite(gyro.gyro.x) ||
+      !isfinite(gyro.gyro.y) ||
+      !isfinite(gyro.gyro.z)) {
+
     mpuOk = false;
+
     Serial.println("E,MPU_FAIL");
+
     return;
   }
 
-  int16_t ax, ay, az, gx, gy, gz, temp;
-  if (!readMPU(ax, ay, az, gx, gy, gz, temp)) {
-    mpuOk = false;
-    Serial.println("E,MPU_FAIL");
-    return;
-  }
 
-  float fax = ax / ACC_SCALE * 9.80665f;
-  float fay = ay / ACC_SCALE * 9.80665f;
-  float faz = az / ACC_SCALE * 9.80665f;
-  float fgx = gx / GYRO_SCALE * DEG2RAD;
-  float fgy = gy / GYRO_SCALE * DEG2RAD;
-  float fgz = gz / GYRO_SCALE * DEG2RAD;
-  float ftmp = temp / 340.0f + 36.53f;
+  /* ---------------------------------------------------------
+   * Envoi ROS 2 / Python
+   *
+   * Format EXACT :
+   *
+   * I,ax,ay,az,gx,gy,gz,temp
+   * --------------------------------------------------------- */
 
-  Serial.printf("I,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.1f\n",
-                fax, fay, faz, fgx, fgy, fgz, ftmp);
+  Serial.printf(
+    "I,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.1f\n",
 
-  // ------ EMPLACEMENT RÉSERVÉ ULTRASONS FUTURS ------
-  // Lire 4 HC-SR04 puis : Serial.printf("U,%.2f,%.2f,%.2f,%.2f\n", fl, fr, rl, rr);
+    acceleration.acceleration.x,
+    acceleration.acceleration.y,
+    acceleration.acceleration.z,
+
+    gyro.gyro.x,
+    gyro.gyro.y,
+    gyro.gyro.z,
+
+    temperature.temperature
+  );
+
+
+  /* =========================================================
+   * ULTRASONS FUTURS
+   *
+   * Lorsque les HC-SR04 seront ajoutés :
+   *
+   * float fl = ...;
+   * float fr = ...;
+   * float rl = ...;
+   * float rr = ...;
+   *
+   * Serial.printf(
+   *   "U,%.2f,%.2f,%.2f,%.2f\n",
+   *   fl, fr, rl, rr
+   * );
+   *
+   * ========================================================= */
 }
