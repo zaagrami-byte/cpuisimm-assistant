@@ -40,9 +40,9 @@ const uint8_t PIN_R_DIR   = 9;
 const uint8_t PIN_R_PWM   = 10;
 
 // ---------- MOTEUR GAUCHE ----------
-const uint8_t PIN_L_BRAKE = 12;
-const uint8_t PIN_L_DIR   = 13;
-const uint8_t PIN_L_PWM   = 11;
+const uint8_t PIN_L_BRAKE = 7;
+const uint8_t PIN_L_DIR   = 6;
+const uint8_t PIN_L_PWM   = 5;
 
 // ============================================================================
 // POLARITÉ DES SIGNAUX
