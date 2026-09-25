@@ -1,176 +1,651 @@
 /**
  * ISIMM ROBOT — Arduino UNO : contrôle bas niveau des 2 moteurs hoverboard.
  *
- * AUCUN encodeur. Cette carte ne fait QUE :
- *   - recevoir des commandes série de la Raspberry Pi ;
+ * AUCUN encodeur. Cette carte fait uniquement :
+ *   - recevoir les commandes série de la Raspberry Pi ;
  *   - générer PWM / DIR / BRAKE ;
  *   - surveiller la communication (watchdog) ;
- *   - gérer l'arrêt d'urgence (logiciel + broche optionnelle pour bouton physique).
+ *   - gérer l'arrêt d'urgence.
  *
- * Elle ne connaît NI cartes, NI obstacles, NI Nav2, NI destinations.
+ * PROTOCOLE (115200 baud, '\n' en fin de ligne) :
  *
- * PROTOCOLE (baud 115200, '\n' en fin de ligne) :
- *   M,<lpwm>,<ldir>,<lbrk>,<rpwm>,<rdir>,<rbrk>   commande moteurs
- *        pwm  : 0..255   dir : 0/1   brk : 0/1
- *   S   -> emergency stop (verrouillé)
- *   C   -> clear emergency stop
- *   P   -> ping  (répond "OK")
- * Boot : envoie "READY". Toute commande invalide -> moteurs STOP + "ERR".
- * Watchdog : si aucune commande M valide pendant CMD_TIMEOUT_MS -> BRAKE.
+ *   M,<lpwm>,<ldir>,<lbrk>,<rpwm>,<rdir>,<rbrk>
+ *
+ *   pwm : 0..255
+ *   dir : 0/1
+ *   brk : 0/1
+ *
+ *   S -> emergency stop (verrouillé)
+ *   C -> clear emergency stop
+ *   P -> ping (répond "OK")
+ *
+ * Boot :
+ *   READY
+ *
+ * Toute commande invalide :
+ *   moteurs STOP + réponse ERR
+ *
+ * Watchdog :
+ *   si aucune commande M valide pendant CMD_TIMEOUT_MS
+ *   -> BRAKE
  */
 
-// ---------- Réglages matériels (À ADAPTER si le driver est actif bas) ----------
+// ============================================================================
+// RÉGLAGES MATÉRIELS
+// ============================================================================
+
+// ---------- MOTEUR DROIT ----------
 const uint8_t PIN_R_BRAKE = 8;
 const uint8_t PIN_R_DIR   = 9;
 const uint8_t PIN_R_PWM   = 10;
+
+// ---------- MOTEUR GAUCHE ----------
 const uint8_t PIN_L_BRAKE = 12;
 const uint8_t PIN_L_DIR   = 13;
 const uint8_t PIN_L_PWM   = 11;
 
-const uint8_t BRAKE_ACTIVE_LEVEL   = HIGH;  // état de la broche BRAKE qui freine
-const uint8_t DIR_FORWARD_LEVEL    = HIGH;  // état de la broche DIR qui fait avancer
+// ============================================================================
+// POLARITÉ DES SIGNAUX
+// ============================================================================
 
-const uint8_t PIN_ESTOP_BUTTON = 2;         // bouton d'urgence physique OPTIONNEL (vers GND)
-const uint8_t PIN_STATUS_LED   = 4;         // LED de statut (allumée = en sécurité/arrêt)
+// Niveau logique qui active le frein
+const uint8_t BRAKE_ACTIVE_LEVEL = HIGH;
 
-const unsigned long CMD_TIMEOUT_MS = 500;   // watchdog communication (doit être > période d'envoi du Pi)
-const unsigned long WATCHDOG_CHECK_MS = 10; // période de surveillance
-// -----------------------------------------------------------------------------
+// Niveau logique DIR correspondant au sens "avant"
+const uint8_t DIR_FORWARD_LEVEL = HIGH;
 
-volatile bool estop = false;                // arrêt d'urgence (ISR + commande S)
-bool          serialEstop = false;
+// ============================================================================
+// INVERSION DE SENS DES MOTEURS
+// ============================================================================
+//
+// IMPORTANT :
+// On ne change PAS les fils du moteur brushless.
+//
+// Si un moteur tourne dans le mauvais sens par rapport à l'autre,
+// on inverse simplement sa commande DIR ici.
+//
+// Actuellement :
+//   Gauche = normal
+//   Droite = inversé
+//
+// Si le mauvais moteur est finalement le gauche :
+//
+//   INVERT_LEFT_DIR  = true;
+//   INVERT_RIGHT_DIR = false;
+//
 
+const bool INVERT_LEFT_DIR  = false;
+const bool INVERT_RIGHT_DIR = true;
+
+// ============================================================================
+// ARRÊT D'URGENCE
+// ============================================================================
+
+// Bouton physique optionnel : bouton entre PIN 2 et GND
+const uint8_t PIN_ESTOP_BUTTON = 2;
+
+// LED de statut
+// HIGH = robot en sécurité / arrêté
+// LOW  = commande moteur active
+const uint8_t PIN_STATUS_LED = 4;
+
+// ============================================================================
+// WATCHDOG
+// ============================================================================
+
+// Temps maximum sans recevoir une commande M valide
+const unsigned long CMD_TIMEOUT_MS = 500;
+
+// Fréquence de vérification du watchdog
+const unsigned long WATCHDOG_CHECK_MS = 10;
+
+// ============================================================================
+// VARIABLES GLOBALES
+// ============================================================================
+
+// E-stop déclenché
+volatile bool estop = false;
+
+// E-stop déclenché par la commande série S
+bool serialEstop = false;
+
+// Temps de dernière commande moteur valide
 unsigned long lastCmdTime = 0;
+
+// Dernière vérification watchdog
 unsigned long lastWatchdogCheck = 0;
 
-char     rxBuffer[80];
-uint8_t  rxIndex = 0;
+// Buffer réception série
+char rxBuffer[80];
+uint8_t rxIndex = 0;
+
+
+// ============================================================================
+// FREIN MOTEUR GAUCHE
+// ============================================================================
 
 void brakeLeft() {
-  digitalWrite(PIN_L_PWM, 0);
+
+  // PWM à zéro
+  analogWrite(PIN_L_PWM, 0);
+
+  // Activation du frein
   digitalWrite(PIN_L_BRAKE, BRAKE_ACTIVE_LEVEL);
 }
+
+
+// ============================================================================
+// FREIN MOTEUR DROIT
+// ============================================================================
+
 void brakeRight() {
-  digitalWrite(PIN_R_PWM, 0);
+
+  // PWM à zéro
+  analogWrite(PIN_R_PWM, 0);
+
+  // Activation du frein
   digitalWrite(PIN_R_BRAKE, BRAKE_ACTIVE_LEVEL);
 }
+
+
+// ============================================================================
+// FREIN DES DEUX MOTEURS
+// ============================================================================
+
 void brakeAll() {
+
   brakeLeft();
   brakeRight();
+
+  // LED = sécurité / arrêt
   digitalWrite(PIN_STATUS_LED, HIGH);
 }
 
+
+// ============================================================================
+// INTERRUPTION E-STOP
+// ============================================================================
+
 void estopISR() {
-  estop = true;                              // toujours sûr : un ISR ne peut que déclencher l'arrêt
+
+  // L'ISR ne fait qu'activer l'arrêt d'urgence.
+  // Le freinage réel est effectué dans loop().
+  estop = true;
 }
 
+
+// ============================================================================
+// LECTURE D'UN CHAMP NUMÉRIQUE
+// ============================================================================
+
 bool parseIntField(char *&p, int &out) {
+
   char *end;
+
   long v = strtol(p, &end, 10);
-  if (end == p) return false;                // pas un nombre
+
+  // Aucun nombre trouvé
+  if (end == p) {
+    return false;
+  }
+
   out = (int)v;
+
   p = end;
-  if (*p == ',') p++;                        // saute la virgule suivante
+
+  // Passer la virgule suivante
+  if (*p == ',') {
+    p++;
+  }
+
   return true;
 }
 
+
+// ============================================================================
+// TRAITEMENT D'UNE LIGNE REÇUE
+// ============================================================================
+
 void processLine(char *line) {
+
+  // ========================================================================
+  // COMMANDE MOTEURS
+  // ========================================================================
+
   if (line[0] == 'M' && line[1] == ',') {
-    int lpwm, ldir, lbrk, rpwm, rdir, rbrk;
+
+    int lpwm;
+    int ldir;
+    int lbrk;
+
+    int rpwm;
+    int rdir;
+    int rbrk;
+
     char *p = line + 2;
-    if (!(parseIntField(p, lpwm) && parseIntField(p, ldir) && parseIntField(p, lbrk) &&
-          parseIntField(p, rpwm) && parseIntField(p, rdir) && parseIntField(p, rbrk))) {
+
+    // ----------------------------------------------------------------------
+    // PARSING
+    // ----------------------------------------------------------------------
+
+    if (!(
+      parseIntField(p, lpwm) &&
+      parseIntField(p, ldir) &&
+      parseIntField(p, lbrk) &&
+      parseIntField(p, rpwm) &&
+      parseIntField(p, rdir) &&
+      parseIntField(p, rbrk)
+    )) {
+
       brakeAll();
+
       Serial.println("ERR:PARSE");
+
       return;
     }
-    // validation stricte des plages
-    if (lpwm < 0 || lpwm > 255 || rpwm < 0 || rpwm > 255 ||
-        ldir < 0 || ldir > 1 || rdir < 0 || rdir > 1 ||
-        lbrk < 0 || lbrk > 1 || rbrk < 0 || rbrk > 1) {
+
+    // ----------------------------------------------------------------------
+    // VALIDATION DES VALEURS
+    // ----------------------------------------------------------------------
+
+    if (
+      lpwm < 0 || lpwm > 255 ||
+      rpwm < 0 || rpwm > 255 ||
+
+      ldir < 0 || ldir > 1 ||
+      rdir < 0 || rdir > 1 ||
+
+      lbrk < 0 || lbrk > 1 ||
+      rbrk < 0 || rbrk > 1
+    ) {
+
       brakeAll();
+
       Serial.println("ERR:RANGE");
+
       return;
     }
+
+    // ----------------------------------------------------------------------
+    // SI E-STOP ACTIF
+    // ----------------------------------------------------------------------
+
+    if (estop || serialEstop) {
+
+      brakeAll();
+
+      Serial.println("ERR:ESTOP");
+
+      return;
+    }
+
+    // ----------------------------------------------------------------------
+    // COMMANDE VALIDE
+    // ----------------------------------------------------------------------
+
     lastCmdTime = millis();
+
     digitalWrite(PIN_STATUS_LED, LOW);
 
-    if (lbrk == 1) brakeLeft();
-    else {
-      digitalWrite(PIN_L_BRAKE, !BRAKE_ACTIVE_LEVEL);
-      digitalWrite(PIN_L_DIR, ldir == 1 ? DIR_FORWARD_LEVEL : !DIR_FORWARD_LEVEL);
-      analogWrite(PIN_L_PWM, lpwm);
+
+    // ======================================================================
+    // MOTEUR GAUCHE
+    // ======================================================================
+
+    if (lbrk == 1) {
+
+      // Frein demandé
+      brakeLeft();
+
+    } else {
+
+      // Désactivation du frein
+      digitalWrite(
+        PIN_L_BRAKE,
+        !BRAKE_ACTIVE_LEVEL
+      );
+
+      // --------------------------------------------------------------
+      // CALCUL DU SENS GAUCHE
+      // --------------------------------------------------------------
+
+      bool leftForward = (ldir == 1);
+
+      // Inversion logicielle
+      if (INVERT_LEFT_DIR) {
+        leftForward = !leftForward;
+      }
+
+      // --------------------------------------------------------------
+      // APPLICATION DIR
+      // --------------------------------------------------------------
+
+      digitalWrite(
+        PIN_L_DIR,
+        leftForward
+          ? DIR_FORWARD_LEVEL
+          : !DIR_FORWARD_LEVEL
+      );
+
+      // --------------------------------------------------------------
+      // APPLICATION PWM
+      // --------------------------------------------------------------
+
+      analogWrite(
+        PIN_L_PWM,
+        lpwm
+      );
     }
-    if (rbrk == 1) brakeRight();
-    else {
-      digitalWrite(PIN_R_BRAKE, !BRAKE_ACTIVE_LEVEL);
-      digitalWrite(PIN_R_DIR, rdir == 1 ? DIR_FORWARD_LEVEL : !DIR_FORWARD_LEVEL);
-      analogWrite(PIN_R_PWM, rpwm);
+
+
+    // ======================================================================
+    // MOTEUR DROIT
+    // ======================================================================
+
+    if (rbrk == 1) {
+
+      // Frein demandé
+      brakeRight();
+
+    } else {
+
+      // Désactivation du frein
+      digitalWrite(
+        PIN_R_BRAKE,
+        !BRAKE_ACTIVE_LEVEL
+      );
+
+      // --------------------------------------------------------------
+      // CALCUL DU SENS DROIT
+      // --------------------------------------------------------------
+
+      bool rightForward = (rdir == 1);
+
+      // IMPORTANT :
+      // Le moteur droit est actuellement inversé.
+      //
+      // Exemple :
+      //   Raspberry -> rdir = 1
+      //   Arduino  -> DIR inverse
+      //
+      if (INVERT_RIGHT_DIR) {
+        rightForward = !rightForward;
+      }
+
+      // --------------------------------------------------------------
+      // APPLICATION DIR
+      // --------------------------------------------------------------
+
+      digitalWrite(
+        PIN_R_DIR,
+        rightForward
+          ? DIR_FORWARD_LEVEL
+          : !DIR_FORWARD_LEVEL
+      );
+
+      // --------------------------------------------------------------
+      // APPLICATION PWM
+      // --------------------------------------------------------------
+
+      analogWrite(
+        PIN_R_PWM,
+        rpwm
+      );
     }
+
     return;
   }
+
+
+  // ========================================================================
+  // EMERGENCY STOP
+  // ========================================================================
+
   if (line[0] == 'S' && line[1] == '\0') {
-    serialEstop = true; estop = true; brakeAll();
+
+    serialEstop = true;
+    estop = true;
+
+    brakeAll();
+
     Serial.println("ESTOP:ON");
+
     return;
   }
+
+
+  // ========================================================================
+  // CLEAR EMERGENCY STOP
+  // ========================================================================
+
   if (line[0] == 'C' && line[1] == '\0') {
-    serialEstop = false; estop = digitalRead(PIN_ESTOP_BUTTON) == LOW;
-    if (!estop) digitalWrite(PIN_STATUS_LED, LOW);
-    Serial.println(estop ? "ESTOP:ON" : "ESTOP:OFF");
+
+    serialEstop = false;
+
+    // Vérifier également le bouton physique
+    estop = (digitalRead(PIN_ESTOP_BUTTON) == LOW);
+
+    if (!estop) {
+
+      digitalWrite(
+        PIN_STATUS_LED,
+        LOW
+      );
+
+      Serial.println("ESTOP:OFF");
+
+    } else {
+
+      brakeAll();
+
+      Serial.println("ESTOP:ON");
+    }
+
     return;
   }
+
+
+  // ========================================================================
+  // PING
+  // ========================================================================
+
   if (line[0] == 'P' && line[1] == '\0') {
+
     Serial.println("OK");
+
     return;
   }
+
+
+  // ========================================================================
+  // COMMANDE INCONNUE
+  // ========================================================================
+
   brakeAll();
+
   Serial.println("ERR:UNKNOWN");
 }
 
+
+// ============================================================================
+// SETUP
+// ============================================================================
+
 void setup() {
+
+  // ========================================================================
+  // CONFIGURATION DES BROCHES MOTEUR DROIT
+  // ========================================================================
+
   pinMode(PIN_R_BRAKE, OUTPUT);
   pinMode(PIN_R_DIR,   OUTPUT);
   pinMode(PIN_R_PWM,   OUTPUT);
+
+
+  // ========================================================================
+  // CONFIGURATION DES BROCHES MOTEUR GAUCHE
+  // ========================================================================
+
   pinMode(PIN_L_BRAKE, OUTPUT);
   pinMode(PIN_L_DIR,   OUTPUT);
   pinMode(PIN_L_PWM,   OUTPUT);
+
+
+  // ========================================================================
+  // LED
+  // ========================================================================
+
   pinMode(PIN_STATUS_LED, OUTPUT);
 
-  // BOUTON URGENCE (optionnel) : entre broche 2 et GND
-  pinMode(PIN_ESTOP_BUTTON, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(PIN_ESTOP_BUTTON), estopISR, FALLING);
-  estop = (digitalRead(PIN_ESTOP_BUTTON) == LOW);
 
-  // ÉTAT SÛR AU DÉMARRAGE : moteurs freinés, jamais de dém automatique
+  // ========================================================================
+  // BOUTON E-STOP
+  // ========================================================================
+
+  // Bouton entre PIN 2 et GND
+  pinMode(
+    PIN_ESTOP_BUTTON,
+    INPUT_PULLUP
+  );
+
+  attachInterrupt(
+    digitalPinToInterrupt(PIN_ESTOP_BUTTON),
+    estopISR,
+    FALLING
+  );
+
+
+  // Lire l'état initial du bouton
+  estop = (
+    digitalRead(PIN_ESTOP_BUTTON) == LOW
+  );
+
+
+  // ========================================================================
+  // ÉTAT SÛR AU DÉMARRAGE
+  // ========================================================================
+
   brakeAll();
+
+
+  // ========================================================================
+  // COMMUNICATION SÉRIE
+  // ========================================================================
+
   Serial.begin(115200);
-  while (!Serial) { ; }                      // attend l'USB (Leonardo) ; inoffensif sur UNO
+
+  // Sur UNO classique, while(!Serial) ne bloque normalement pas.
+  // Il est conservé pour compatibilité avec les cartes USB natives.
+  while (!Serial) {
+    ;
+  }
+
+
+  // ========================================================================
+  // MESSAGE DE DÉMARRAGE
+  // ========================================================================
+
   Serial.println("READY");
 }
 
+
+// ============================================================================
+// LOOP
+// ============================================================================
+
 void loop() {
-  // 1) lecture série
+
+  // ========================================================================
+  // 1. LECTURE SÉRIE
+  // ========================================================================
+
   while (Serial.available() > 0) {
+
     char c = (char)Serial.read();
+
+
+    // ----------------------------------------------------------------------
+    // FIN DE LIGNE
+    // ----------------------------------------------------------------------
+
     if (c == '\n') {
+
       rxBuffer[rxIndex] = '\0';
-      if (rxIndex > 0) processLine(rxBuffer);
+
+      if (rxIndex > 0) {
+
+        processLine(rxBuffer);
+      }
+
       rxIndex = 0;
-    } else if (c != '\r') {
-      if (rxIndex < sizeof(rxBuffer) - 1) rxBuffer[rxIndex++] = c;
-      else { rxIndex = 0; brakeAll(); Serial.println("ERR:OVERFLOW"); }
+    }
+
+
+    // ----------------------------------------------------------------------
+    // IGNORER CR
+    // ----------------------------------------------------------------------
+
+    else if (c != '\r') {
+
+      // --------------------------------------------------------------------
+      // AJOUT AU BUFFER
+      // --------------------------------------------------------------------
+
+      if (rxIndex < sizeof(rxBuffer) - 1) {
+
+        rxBuffer[rxIndex++] = c;
+
+      } else {
+
+        // Buffer plein = sécurité
+        rxIndex = 0;
+
+        brakeAll();
+
+        Serial.println("ERR:OVERFLOW");
+      }
     }
   }
 
-  // 2) watchdog + emergency stop (vérifiés à 100 Hz)
+
+  // ========================================================================
+  // 2. WATCHDOG + E-STOP
+  // ========================================================================
+
   unsigned long now = millis();
-  if (now - lastWatchdogCheck >= WATCHDOG_CHECK_MS) {
+
+  if (
+    now - lastWatchdogCheck >= WATCHDOG_CHECK_MS
+  ) {
+
     lastWatchdogCheck = now;
+
+
+    // ----------------------------------------------------------------------
+    // E-STOP
+    // ----------------------------------------------------------------------
+
     if (estop || serialEstop) {
+
       brakeAll();
-    } else if (now - lastCmdTime > CMD_TIMEOUT_MS) {
-      // communication perdue (Pi planté, USB débranché, ROS arrêté) -> BRAKE
+    }
+
+
+    // ----------------------------------------------------------------------
+    // PERTE DE COMMUNICATION
+    // ----------------------------------------------------------------------
+
+    else if (
+      now - lastCmdTime > CMD_TIMEOUT_MS
+    ) {
+
+      // Raspberry Pi arrêtée,
+      // ROS arrêté,
+      // câble USB débranché,
+      // node moteur arrêté, etc.
+      //
+      // => freinage immédiat.
+
       brakeAll();
     }
   }
