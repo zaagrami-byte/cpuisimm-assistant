@@ -1,11 +1,20 @@
 /**
  * ISIMM ROBOT — Arduino UNO : contrôle bas niveau des 2 moteurs hoverboard.
  *
- * AUCUN encodeur. Cette carte fait uniquement :
+ * AUCUN encodeur.
+ *
+ * Cette carte fait uniquement :
  *   - recevoir les commandes série de la Raspberry Pi ;
  *   - générer PWM / DIR / BRAKE ;
  *   - surveiller la communication (watchdog) ;
  *   - gérer l'arrêt d'urgence.
+ *
+ * IMPORTANT :
+ * Toutes les sorties sont commandées avec analogWrite().
+ *
+ *   analogWrite(pin, 0)   = LOW
+ *   analogWrite(pin, 255) = HIGH
+ *
  *
  * PROTOCOLE (115200 baud, '\n' en fin de ligne) :
  *
@@ -44,15 +53,25 @@ const uint8_t PIN_L_BRAKE = 7;
 const uint8_t PIN_L_DIR   = 6;
 const uint8_t PIN_L_PWM   = 5;
 
+
 // ============================================================================
 // POLARITÉ DES SIGNAUX
 // ============================================================================
 
-// Niveau logique qui active le frein
-const uint8_t BRAKE_ACTIVE_LEVEL = HIGH;
+// Niveau analogique qui active le frein
+//
+// 255 = HIGH
+//   0 = LOW
+//
+const uint8_t BRAKE_ACTIVE_LEVEL = 255;
 
-// Niveau logique DIR correspondant au sens "avant"
-const uint8_t DIR_FORWARD_LEVEL = HIGH;
+// Niveau analogique DIR correspondant au sens "avant"
+//
+// 255 = HIGH
+//   0 = LOW
+//
+const uint8_t DIR_FORWARD_LEVEL = 255;
+
 
 // ============================================================================
 // INVERSION DE SENS DES MOTEURS
@@ -77,6 +96,7 @@ const uint8_t DIR_FORWARD_LEVEL = HIGH;
 const bool INVERT_LEFT_DIR  = false;
 const bool INVERT_RIGHT_DIR = true;
 
+
 // ============================================================================
 // ARRÊT D'URGENCE
 // ============================================================================
@@ -85,9 +105,12 @@ const bool INVERT_RIGHT_DIR = true;
 const uint8_t PIN_ESTOP_BUTTON = 2;
 
 // LED de statut
-// HIGH = robot en sécurité / arrêté
-// LOW  = commande moteur active
+//
+// 255 = robot en sécurité / arrêté
+//   0 = commande moteur active
+//
 const uint8_t PIN_STATUS_LED = 4;
+
 
 // ============================================================================
 // WATCHDOG
@@ -98,6 +121,7 @@ const unsigned long CMD_TIMEOUT_MS = 500;
 
 // Fréquence de vérification du watchdog
 const unsigned long WATCHDOG_CHECK_MS = 10;
+
 
 // ============================================================================
 // VARIABLES GLOBALES
@@ -130,7 +154,10 @@ void brakeLeft() {
   analogWrite(PIN_L_PWM, 0);
 
   // Activation du frein
-  digitalWrite(PIN_L_BRAKE, BRAKE_ACTIVE_LEVEL);
+  analogWrite(
+    PIN_L_BRAKE,
+    BRAKE_ACTIVE_LEVEL
+  );
 }
 
 
@@ -144,7 +171,10 @@ void brakeRight() {
   analogWrite(PIN_R_PWM, 0);
 
   // Activation du frein
-  digitalWrite(PIN_R_BRAKE, BRAKE_ACTIVE_LEVEL);
+  analogWrite(
+    PIN_R_BRAKE,
+    BRAKE_ACTIVE_LEVEL
+  );
 }
 
 
@@ -158,7 +188,10 @@ void brakeAll() {
   brakeRight();
 
   // LED = sécurité / arrêt
-  digitalWrite(PIN_STATUS_LED, HIGH);
+  analogWrite(
+    PIN_STATUS_LED,
+    255
+  );
 }
 
 
@@ -224,6 +257,7 @@ void processLine(char *line) {
 
     char *p = line + 2;
 
+
     // ----------------------------------------------------------------------
     // PARSING
     // ----------------------------------------------------------------------
@@ -243,6 +277,7 @@ void processLine(char *line) {
 
       return;
     }
+
 
     // ----------------------------------------------------------------------
     // VALIDATION DES VALEURS
@@ -266,6 +301,7 @@ void processLine(char *line) {
       return;
     }
 
+
     // ----------------------------------------------------------------------
     // SI E-STOP ACTIF
     // ----------------------------------------------------------------------
@@ -279,13 +315,18 @@ void processLine(char *line) {
       return;
     }
 
+
     // ----------------------------------------------------------------------
     // COMMANDE VALIDE
     // ----------------------------------------------------------------------
 
     lastCmdTime = millis();
 
-    digitalWrite(PIN_STATUS_LED, LOW);
+    // LED = robot commandé
+    analogWrite(
+      PIN_STATUS_LED,
+      0
+    );
 
 
     // ======================================================================
@@ -294,16 +335,23 @@ void processLine(char *line) {
 
     if (lbrk == 1) {
 
-      // Frein demandé
+      // --------------------------------------------------------------
+      // FREIN DEMANDÉ
+      // --------------------------------------------------------------
+
       brakeLeft();
 
     } else {
 
-      // Désactivation du frein
-      digitalWrite(
+      // --------------------------------------------------------------
+      // DÉSACTIVATION DU FREIN
+      // --------------------------------------------------------------
+
+      analogWrite(
         PIN_L_BRAKE,
-        !BRAKE_ACTIVE_LEVEL
+        0
       );
+
 
       // --------------------------------------------------------------
       // CALCUL DU SENS GAUCHE
@@ -311,21 +359,27 @@ void processLine(char *line) {
 
       bool leftForward = (ldir == 1);
 
-      // Inversion logicielle
+
+      // --------------------------------------------------------------
+      // INVERSION LOGICIELLE
+      // --------------------------------------------------------------
+
       if (INVERT_LEFT_DIR) {
         leftForward = !leftForward;
       }
+
 
       // --------------------------------------------------------------
       // APPLICATION DIR
       // --------------------------------------------------------------
 
-      digitalWrite(
+      analogWrite(
         PIN_L_DIR,
         leftForward
           ? DIR_FORWARD_LEVEL
-          : !DIR_FORWARD_LEVEL
+          : 0
       );
+
 
       // --------------------------------------------------------------
       // APPLICATION PWM
@@ -344,16 +398,23 @@ void processLine(char *line) {
 
     if (rbrk == 1) {
 
-      // Frein demandé
+      // --------------------------------------------------------------
+      // FREIN DEMANDÉ
+      // --------------------------------------------------------------
+
       brakeRight();
 
     } else {
 
-      // Désactivation du frein
-      digitalWrite(
+      // --------------------------------------------------------------
+      // DÉSACTIVATION DU FREIN
+      // --------------------------------------------------------------
+
+      analogWrite(
         PIN_R_BRAKE,
-        !BRAKE_ACTIVE_LEVEL
+        0
       );
+
 
       // --------------------------------------------------------------
       // CALCUL DU SENS DROIT
@@ -361,27 +422,27 @@ void processLine(char *line) {
 
       bool rightForward = (rdir == 1);
 
-      // IMPORTANT :
-      // Le moteur droit est actuellement inversé.
-      //
-      // Exemple :
-      //   Raspberry -> rdir = 1
-      //   Arduino  -> DIR inverse
-      //
+
+      // --------------------------------------------------------------
+      // INVERSION LOGICIELLE
+      // --------------------------------------------------------------
+
       if (INVERT_RIGHT_DIR) {
         rightForward = !rightForward;
       }
+
 
       // --------------------------------------------------------------
       // APPLICATION DIR
       // --------------------------------------------------------------
 
-      digitalWrite(
+      analogWrite(
         PIN_R_DIR,
         rightForward
           ? DIR_FORWARD_LEVEL
-          : !DIR_FORWARD_LEVEL
+          : 0
       );
+
 
       // --------------------------------------------------------------
       // APPLICATION PWM
@@ -423,13 +484,16 @@ void processLine(char *line) {
     serialEstop = false;
 
     // Vérifier également le bouton physique
-    estop = (digitalRead(PIN_ESTOP_BUTTON) == LOW);
+    estop = (
+      digitalRead(PIN_ESTOP_BUTTON) == LOW
+    );
+
 
     if (!estop) {
 
-      digitalWrite(
+      analogWrite(
         PIN_STATUS_LED,
-        LOW
+        0
       );
 
       Serial.println("ESTOP:OFF");
@@ -508,6 +572,7 @@ void setup() {
     INPUT_PULLUP
   );
 
+
   attachInterrupt(
     digitalPinToInterrupt(PIN_ESTOP_BUTTON),
     estopISR,
@@ -534,8 +599,10 @@ void setup() {
 
   Serial.begin(115200);
 
+
   // Sur UNO classique, while(!Serial) ne bloque normalement pas.
   // Il est conservé pour compatibilité avec les cartes USB natives.
+
   while (!Serial) {
     ;
   }
@@ -572,10 +639,12 @@ void loop() {
 
       rxBuffer[rxIndex] = '\0';
 
+
       if (rxIndex > 0) {
 
         processLine(rxBuffer);
       }
+
 
       rxIndex = 0;
     }
@@ -613,6 +682,7 @@ void loop() {
   // ========================================================================
 
   unsigned long now = millis();
+
 
   if (
     now - lastWatchdogCheck >= WATCHDOG_CHECK_MS
