@@ -34,8 +34,16 @@ def generate_launch_description():
         Node(package='isimm_robot', executable='esp32_sensor_node',
              name='esp32_sensor_node', parameters=[params], output='screen'),
 
-        Node(package='isimm_robot', executable='safety_node',
-             name='safety_node', parameters=[params], output='screen'),
+        Node(
+            package='isimm_robot',
+            executable='safety_node',
+            name='safety_node',
+            parameters=[params],
+            remappings=[
+                ('cmd_vel', '/cmd_vel_smoothed'),
+            ],
+            output='screen'
+        ),
 
         Node(package='isimm_robot', executable='motor_controller_node',
              name='motor_controller_node', parameters=[params], output='screen'),
