@@ -20,31 +20,76 @@ def generate_launch_description():
     use_rviz = LaunchConfiguration('use_rviz')
 
     return LaunchDescription([
-        DeclareLaunchArgument(
-            'map_file', default_value=os.path.expanduser('~/maps/isimm_map.posegraph'),
-            description='Fichier .posegraph sauvegardé par slam_toolbox'),
 
-        # RViz OPTIONNEL : la Pi 4 fonctionne sans interface graphique.
         DeclareLaunchArgument(
-            'use_rviz', default_value='false',
-            description='Lancer RViz (à éviter sur la Raspberry Pi)'),
+            'map_file',
+            default_value='/home/isimmassistant/isimm/maps/isimm_main.posegraph',
+            description='Posegraph SLAM Toolbox utilisée pour la localisation'
+        ),
 
+        DeclareLaunchArgument(
+            'use_rviz',
+            default_value='false',
+            description='Lancer RViz sur la Raspberry Pi'
+        ),
+
+        # Robot base:
+        # moteurs, ESP32, RPLIDAR, RF2O, TF...
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
-                os.path.join(pkg, 'launch', 'robot.launch.py'))),
+                os.path.join(pkg, 'launch', 'robot.launch.py')
+            )
+        ),
 
-        # localisation : slam_toolbox charge la posegraph, publie map->odom + /map
-        Node(package='slam_toolbox', executable='async_slam_toolbox_node',
-             name='slam_toolbox', parameters=[loc_params, {'map_file_name': map_file}],
-             output='screen'),
+        # SLAM Toolbox en mode localisation
+        Node(
+            package='slam_toolbox',
+            executable='async_slam_toolbox_node',
+            name='slam_toolbox',
+            parameters=[
+                loc_params,
+                {
+                    'map_file_name': map_file
+                }
+            ],
+            output='screen'
+        ),
 
+        # Activation automatique de SLAM Toolbox
+        Node(
+            package='nav2_lifecycle_manager',
+            executable='lifecycle_manager',
+            name='lifecycle_manager_slam_localization',
+            output='screen',
+            parameters=[
+                {
+                    'autostart': True,
+                    'node_names': ['slam_toolbox']
+                }
+            ]
+        ),
+
+        # Nav2
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
-                os.path.join(nav2_bringup, 'launch', 'navigation_launch.py')),
-            launch_arguments={'params_file': nav2_params,
-                              'use_sim_time': 'false'}.items()),
+                os.path.join(
+                    nav2_bringup,
+                    'launch',
+                    'navigation_launch.py'
+                )
+            ),
+            launch_arguments={
+                'params_file': nav2_params,
+                'use_sim_time': 'false'
+            }.items()
+        ),
 
-        Node(package='rviz2', executable='rviz2',
-             condition=IfCondition(use_rviz),
-             arguments=['-d', rviz_cfg], output='screen'),
+        # RViz optionnel
+        Node(
+            package='rviz2',
+            executable='rviz2',
+            condition=IfCondition(use_rviz),
+            arguments=['-d', rviz_cfg],
+            output='screen'
+        ),
     ])
