@@ -31,6 +31,7 @@ Visualization Manager:
       Topic:
         Value: /scan
         Depth: 5
+        Reliability Policy: Best Effort
       Size (Pixels): 3
       Color: 255; 0; 0
       Style: Points
@@ -41,13 +42,13 @@ Visualization Manager:
       Min Color: 0; 0; 0
       Position Transformer: XYZ
       Selectable: true
-      Unreliable: false
     - Class: rviz_default_plugins/Map
       Name: Map
       Value: true
       Topic:
         Value: /map
         Depth: 1
+        Durability Policy: Transient Local
       Color Scheme: map
       Alpha: 0.7
       Draw Behind: false
@@ -58,8 +59,9 @@ Visualization Manager:
       Topic:
         Value: /global_costmap/costmap
         Depth: 1
+        Durability Policy: Transient Local
       Color Scheme: costmap
-      Alpha: 0.7
+      Alpha: 0.5
       Draw Behind: false
     - Class: rviz_default_plugins/Map
       Name: LocalCostmap
@@ -67,9 +69,51 @@ Visualization Manager:
       Topic:
         Value: /local_costmap/costmap
         Depth: 1
+        Durability Policy: Transient Local
       Color Scheme: costmap
-      Alpha: 0.7
+      Alpha: 0.5
       Draw Behind: false
+    - Class: rviz_default_plugins/Path
+      Name: GlobalPlan
+      Value: true
+      Topic:
+        Value: /plan
+        Depth: 1
+      Color: 0; 200; 0
+      Alpha: 1
+      Line Style: Lines
+    - Class: rviz_default_plugins/Path
+      Name: LocalPlan (chemin suivi par RPP)
+      Value: true
+      Topic:
+        Value: /received_global_plan
+        Depth: 1
+      Color: 255; 170; 0
+      Alpha: 1
+      Line Style: Lines
+    - Class: rviz_default_plugins/Path
+      Name: LookaheadArc
+      Value: true
+      Topic:
+        Value: /lookahead_collision_arc
+        Depth: 1
+      Color: 0; 120; 255
+      Alpha: 1
+      Line Style: Lines
+    - Class: rviz_default_plugins/Polygon
+      Name: PolygonStop
+      Value: true
+      Topic:
+        Value: /polygon_stop
+        Depth: 1
+      Color: 255; 0; 0
+    - Class: rviz_default_plugins/Polygon
+      Name: PolygonSlow
+      Value: true
+      Topic:
+        Value: /polygon_slowdown
+        Depth: 1
+      Color: 255; 255; 0
   Global Options:
     Background Color: 48; 48; 48
     Fixed Frame: map
@@ -84,7 +128,7 @@ Visualization Manager:
       Covariance y: 0.25
       Covariance yaw: 0.06853891909122467
     - Class: rviz_default_plugins/SetGoal
-      Name: 2D Nav Goal
+      Name: 2D Goal Pose
       Topic:
         Value: /goal_pose
     - Class: rviz_default_plugins/Measure

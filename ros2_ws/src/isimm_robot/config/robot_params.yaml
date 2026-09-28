@@ -1,37 +1,43 @@
 rplidar_node:
   ros__parameters:
     serial_port: "/dev/isimm_rplidar"
-    serial_baudrate: 115200        # 460800 pour RPLIDAR C1 (NON VERIFIÉ : dépend du modèle exact du kit 2BTrading)
+    serial_baudrate: 115200        # 460800 pour RPLIDAR C1 (NON VERIFIÉ : dépend du modèle exact du kit)
     frame_id: "laser_link"
     angle_compensate: true
     scan_mode: "Standard"
     inverted: false
 
-rf2o_laser_odometry_node:
+# Nom RÉEL du nœud (pas de name= dans le launch) : CLaserOdometry2DNode
+CLaserOdometry2DNode:
   ros__parameters:
-    # NOMS RÉELS DES PARAMÈTRES (lus dans CLaserOdometry2DNode.h) :
     laser_scan_topic: "/scan"
     odom_topic: "/odom"
     publish_tf: true
     odom_frame_id: "odom"
     base_frame_id: "base_link"
     init_pose_from_topic: ""
-    freq: 10.0
+    freq: 20.0                     # fréquence de scrutation ; le débit réel = cadence du LiDAR
 
 motor_controller_node:
   ros__parameters:
     serial_port: "/dev/isimm_arduino"
     serial_baudrate: 115200
     wheel_separation: 0.48         # validé (m) — DOIT correspondre à l'URDF
-    max_linear_speed: 0.5
-    max_angular_speed: 1.5
-    max_pwm: 100                   # validé pour les premiers tests physiques - NE PAS AUGMENTER
-    min_pwm: 25
-    deadband: 0.01
+    max_linear_speed: 0.35         # > Nav2 (0.30) : dernier garde-fou
+    max_angular_speed: 1.2         # > Nav2 (1.0)
+    max_pwm: 100                   # validé pour les premiers tests - NE PAS AUGMENTER
+    left_min_pwm: 25               # PWM minimal effectif (frottement statique) — À CALIBRER
+    right_min_pwm: 25
+    wheel_speed_min_effective: 0.05   # vitesse de roue (m/s) associée à min_pwm — À CALIBRER
+    wheel_speed_at_max_pwm: 0.64      # = 0.35 + 1.2*0.48/2 (pire cas des limites) — À CALIBRER
+    left_gain: 1.0                 # compensation statique gauche/droite (voir protocole)
+    right_gain: 1.0
+    deadband: 0.02                 # m/s : en dessous -> 0 réel (frein)
     command_rate: 20.0             # Hz (heartbeat watchdog Arduino)
     cmd_timeout: 0.5
     retry_period: 5.0
-    left_invert: false
+    startup_grace: 2.0             # l'Uno redémarre à l'ouverture du port
+    left_invert: false             # polarité matérielle gérée par l'Arduino (INVERT_*_DIR)
     right_invert: false
 
 esp32_sensor_node:
@@ -40,23 +46,35 @@ esp32_sensor_node:
     serial_baudrate: 115200
     frame_id: "imu_link"
     range_frame_id: "ultrasonic_link"
-    reconnect_period: 5.0
 
 safety_node:
   ros__parameters:
     cmd_timeout: 0.5
-    max_linear_speed: 0.5
-    max_angular_speed: 1.5
+    max_linear_speed: 0.35
+    max_angular_speed: 1.2
     publish_rate: 20.0
     monitor_scan: true
     scan_timeout: 1.0
-    min_obstacle_distance: 0.0
-    warn_period: 5.0               # log non bloquant
+    hard_stop_enabled: true
+    footprint_half_length: 0.285
+    footprint_half_width: 0.20
+    laser_x: 0.0
+    laser_y: 0.0
+    hard_stop_front_margin: 0.06   # zone [0.285, 0.345] devant (CM stoppe à 0.385)
+    hard_stop_rear_margin: 0.10    # zone arrière (aucun polygone CM à l'arrière)
+    hard_stop_lateral_margin: 0.02
+    hard_stop_min_points: 3
+    min_valid_range: 0.15
+    warn_period: 5.0
 
 robot_status_node:
   ros__parameters:
     scan_timeout: 2.0
+    odom_timeout: 2.0
     imu_timeout: 2.0
+    tf_timeout: 2.0
+    safe_cmd_timeout: 1.0
+    motor_status_timeout: 3.0
 
 robot_state_publisher:
   ros__parameters:
