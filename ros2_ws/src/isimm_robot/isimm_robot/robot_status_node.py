@@ -174,8 +174,13 @@ class RobotStatusNode(Node):
             arr.status.append(st)
             if self._prev.get(name) != lvl:
                 self._prev[name] = lvl
-                log = (self.get_logger().info, self.get_logger().warn, self.get_logger().error)[lvl]
-                log(f'{name} : {msg}')
+                text = f'{name} : {msg}'
+                if lvl == 0:
+                    self.get_logger().info(text)
+                elif lvl == 1:
+                    self.get_logger().warn(text)
+                else:
+                    self.get_logger().error(text)
         overall = DiagnosticStatus()
         overall.name = 'isimm/overall'
         overall.hardware_id = 'isimm_robot'

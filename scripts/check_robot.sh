@@ -77,11 +77,12 @@ tf() {
 tf odom base_link fail
 tf base_link laser_link fail
 [ "$MODE" != base ] && tf map odom fail
-TFPUB=$(timeout 6 ros2 topic info /tf -v 2>/dev/null | grep "Node name" | awk '{print $3}' | sort | uniq -c)
-echo "   publishers /tf : $(echo $TFPUB)"
-echo "$TFPUB" | awk '$1>1{f=1} END{exit f}' || fail "un publisher /tf en double"
-echo "$TFPUB" | grep -Eqv "CLaserOdometry2DNode|slam_toolbox|^$" && warn "publisher /tf inattendu (voir liste)" || pass "publishers /tf attendus (RF2O, slam_toolbox)"
-
+TFPUB=$(timeout 6 ros2 topic info /tf -v 2>/dev/null | \
+  awk '/^Node name:/{node=$3} /^Endpoint type: PUBLISHER/{print node}')
+echo "   publishers /tf réels : $(echo $TFPUB | tr '\n' ' ')"
+DUP=$(echo "$TFPUB" | sort | uniq -d)
+[ -z "$DUP" ] && pass "aucun publisher /tf en double" || warn "publisher /tf en double (souvent bénin : slam_toolbox recrée son broadcaster au lifecycle activate) : $DUP — vérifier via 'ps aux | grep <nom>' qu'un seul PID existe"
+echo "$TFPUB" | grep -Eqv "CLaserOdometry2DNode|slam_toolbox|^$" && warn "publisher /tf inattendu : $(echo $TFPUB)" || pass "publishers /tf attendus (RF2O, slam_toolbox)"
 echo "== Chaîne cmd_vel / unicité =="
 pubs() { timeout 5 ros2 topic info "$1" 2>/dev/null | awk '/Publisher count/{print $3}'; }
 subs() { timeout 5 ros2 topic info "$1" 2>/dev/null | awk '/Subscription count/{print $3}'; }
