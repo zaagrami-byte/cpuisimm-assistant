@@ -1,0 +1,21 @@
+# Base de connaissances injectée dans le prompt (taille limitée : rester concis).
+# Ne mettre QUE des faits vérifiés : l'assistant les répétera tels quels.
+# Structure libre : dictionnaires / listes de texte.
+institution:
+  nom: "ISIMM — Institut Supérieur d'Informatique et de Mathématiques de Monastir"
+clubs:
+  - "Club CPU-ISIMM : club de robotique et de technologie des étudiants."
+
+# Exemples à compléter (décommenter) :
+# horaires:
+#   ouverture: "Du lundi au vendredi, de 8h à 17h"
+# departements:
+#   - nom: "Département ..."
+#     description: "..."
+# services:
+#   - nom: "Scolarité"
+#     lieu: "administration"
+#     horaires: "..."
+# faq:
+#   - question: "Où se trouve la bibliothèque ?"
+#     reponse: "..."

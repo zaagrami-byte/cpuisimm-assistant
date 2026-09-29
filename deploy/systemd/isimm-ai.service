@@ -1,0 +1,16 @@
+# PC (service UTILISATEUR) :
+#   mkdir -p ~/.config/systemd/user && cp deploy/systemd/isimm-ai.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user enable --now isimm-ai
+[Unit]
+Description=ISIMM AI assistant (PC)
+After=network-online.target ollama.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Desktop/isimm/ai
+ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && exec %h/Desktop/isimm/ai/venv/bin/python main.py --voice'
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

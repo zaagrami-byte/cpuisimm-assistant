@@ -1,0 +1,12 @@
+# LLM local (Ollama) : appels chat + tool calling
+ollama>=0.4.0
+# STT local
+faster-whisper>=1.0.0
+# TTS local
+piper-tts>=1.3.0
+# VAD : découpe la parole de la voix venant du robot
+webrtcvad>=2.0.10
+# numpy < 2 : ABI compatible avec rclpy (ROS 2 Jazzy, Ubuntu 24.04)
+numpy>=1.26,<2
+# Lecture de assistant.yaml / locations.yaml / base de connaissances
+PyYAML>=6.0

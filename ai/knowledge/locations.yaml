@@ -1,0 +1,51 @@
+# Destinations du robot, dans le repère de la carte (frame map).
+# x, y en mètres, yaw_deg en degrés (0 = axe +x de la carte).
+# null = position pas encore enregistrée : l'IA refusera d'y aller.
+# Relever une position : robot à l'endroit voulu, puis
+#   python -m scripts.record_location <nom>
+frame: map
+locations:
+  accueil:
+    description: "Hall d'accueil"
+    spoken_to: "à l'accueil"
+    spoken_name: "l'accueil"
+    aliases: ["hall", "hall d'accueil"]
+    x: null
+    y: null
+    yaw_deg: null
+
+  administration:
+    description: "Bureaux de l'administration"
+    spoken_to: "à l'administration"
+    spoken_name: "l'administration"
+    aliases: ["bureau administratif", "secrétariat"]
+    x: null
+    y: null
+    yaw_deg: null
+
+  laboratoire:
+    description: "Laboratoire"
+    spoken_to: "au laboratoire"
+    spoken_name: "le laboratoire"
+    aliases: ["labo"]
+    x: null
+    y: null
+    yaw_deg: null
+
+  direction:
+    description: "Bureau de la direction"
+    spoken_to: "à la direction"
+    spoken_name: "la direction"
+    aliases: ["bureau du directeur"]
+    x: null
+    y: null
+    yaw_deg: null
+
+  salle_robotique:
+    description: "Salle du club de robotique"
+    spoken_to: "à la salle de robotique"
+    spoken_name: "la salle de robotique"
+    aliases: ["salle de robotique", "club robotique", "salle du club"]
+    x: null
+    y: null
+    yaw_deg: null
