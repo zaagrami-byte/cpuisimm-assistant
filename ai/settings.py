@@ -98,7 +98,7 @@ def load_settings(config_path: str | Path | None = None) -> Settings:
         return cast(raw) if raw not in (None, "") else default
 
     s = Settings(
-        language=env("LANGUAGE", data.get("language", "fr")),
+        language=env("AI_LANGUAGE", data.get("language", "fr")),
         dry_run=env("AI_DRY_RUN", _bool(data.get("dry_run", True)), _bool),
         log_level=env("AI_LOG_LEVEL", data.get("log_level", "INFO")).upper(),
         log_dir=_path(data.get("log_dir", "logs")),
