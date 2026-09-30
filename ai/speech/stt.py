@@ -42,6 +42,9 @@ class WhisperSTT:
         if not pcm:
             return ""
         audio = np.frombuffer(pcm, dtype=np.int16).astype(np.float32) / 32768.0
+        peak = float(np.max(np.abs(audio))) if audio.size else 0.0
+        if 0.005 < peak < 0.3:  # micro faible : pic ramené à ~0.5 (gain max x30)
+            audio = np.clip(audio * min(0.5 / peak, 30.0), -1.0, 1.0)
         start = time.perf_counter()
         future = self._pool.submit(self._run, audio)
         try:
@@ -60,7 +63,7 @@ class WhisperSTT:
     def _run(self, audio: np.ndarray) -> str:
         segments, _ = self._model.transcribe(
             audio, language=self._s.language, beam_size=self._s.whisper_beam_size,
-            vad_filter=True, vad_parameters={"min_silence_duration_ms": 500},
+            vad_filter=True, vad_parameters={"min_silence_duration_ms": 500, "threshold": 0.35},
             no_speech_threshold=0.6, log_prob_threshold=-1.0,
             compression_ratio_threshold=2.4, condition_on_previous_text=False)
         return " ".join(seg.text.strip() for seg in segments).strip() 
