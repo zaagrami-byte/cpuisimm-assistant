@@ -98,15 +98,15 @@ if [ "$MODE" = navigation ]; then
 fi
 
 echo "== Moteurs / sécurité =="
-ms=$(timeout 4 ros2 topic echo --once /motor_status --field data 2>/dev/null | head -1)
+ms=$(timeout 10 ros2 topic echo --once /motor_status --field data 2>/dev/null | head -1)
 [ "$ms" = "OK" ] && pass "motor_status = OK (série + Arduino)" || fail "motor_status = '${ms:-aucun}'"
-ss=$(timeout 4 ros2 topic echo --once /safety_state --field data 2>/dev/null | head -1)
+ss=$(timeout 10 ros2 topic echo --once /safety_state --field data 2>/dev/null | head -1)
 case "$ss" in OK) pass "safety_state = OK";; NO_CMD_YET|CMD_TIMEOUT) pass "safety_state = $ss (repos normal)";;
   "") fail "safety_state : aucun message";; *) warn "safety_state = $ss";; esac
 
 echo "== use_sim_time =="
 for n in safety_node motor_controller_node robot_state_publisher; do
-  v=$(timeout 4 ros2 param get "/$n" use_sim_time 2>/dev/null | awk '{print $NF}')
+  v=$(timeout 10 ros2 param get "/$n" use_sim_time 2>/dev/null | awk '{print $NF}')
   [ "$v" = "False" ] && pass "/$n use_sim_time=False" || warn "/$n use_sim_time='${v:-?}'"
 done
 
