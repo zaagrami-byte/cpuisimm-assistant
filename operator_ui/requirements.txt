@@ -1,0 +1,7 @@
+# rclpy vient de ROS 2 Jazzy (source /opt/ros/jazzy/setup.bash) : créer le venv avec
+# --system-site-packages. numpy < 2 : ABI compatible avec rclpy (comme ai/requirements.txt).
+PySide6>=6.6
+pygame>=2.5
+PyYAML>=6.0
+numpy>=1.26,<2
+pytest>=7

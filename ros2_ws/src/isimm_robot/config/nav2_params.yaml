@@ -1,5 +1,6 @@
 # Nav2 Jazzy — robot réel ISIMM, sans encodeurs (odométrie RF2O, ~5-10 Hz).
-# Chaîne : cmd_vel_nav -> smoother -> cmd_vel_smoothed -> collision_monitor -> cmd_vel
+# Chaîne : cmd_vel_nav -> smoother -> cmd_vel_smoothed -> cmd_vel_mux_node (+ cmd_vel_teleop)
+#          -> cmd_vel_mux -> collision_monitor -> cmd_vel -> safety_node -> safe_cmd_vel
 # Frames : map -> odom -> base_link (base_footprint n'existe plus).
 # Footprint physique 0.57 x 0.40 m, LiDAR au centre.
 
@@ -226,7 +227,7 @@ collision_monitor:
     use_sim_time: False
     base_frame_id: "base_link"
     odom_frame_id: "odom"
-    cmd_vel_in_topic: "cmd_vel_smoothed"
+    cmd_vel_in_topic: "cmd_vel_mux"      # sortie du cmd_vel_mux_node (AUTO/MANUAL)
     cmd_vel_out_topic: "cmd_vel"
     state_topic: "collision_monitor_state"
     transform_tolerance: 0.5

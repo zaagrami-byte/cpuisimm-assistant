@@ -1,0 +1,17 @@
+# Mapping de la manette. La manette exacte n'est PAS confirmée : les indices ci-dessous sont
+# des CANDIDATS (disposition Linux « xbox » : axes 1=stick gauche vertical, 3=stick droit
+# horizontal ; bouton 4=LB). VÉRIFIEZ-LES :
+#   python -m operator_ui --check-gamepad      (ou l'onglet « Pilotage manuel »)
+# puis corrigez ce fichier. null = fonction non assignée (pilotage impossible tant que
+# forward, turn et deadman ne sont pas définis).
+# mapping_verified: false -> l'onglet exige de cocher « J'ai vérifié le mapping » à chaque session.
+mapping_verified: false
+axes:
+  forward: 1          # stick gauche vertical
+  turn: 3             # stick droit horizontal
+invert:
+  forward: true       # pygame : stick poussé vers le haut = -1 -> avant = +
+  turn: true          # stick vers la droite = +1 -> rotation horaire = vitesse angulaire négative
+buttons:
+  deadman: 4          # LB (maintenu = autorisation de mouvement)
+  speed_toggle: null  # optionnel : bascule lente/normale

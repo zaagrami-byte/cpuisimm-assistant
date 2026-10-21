@@ -1,0 +1,30 @@
+# Réglages du pilotage manuel (côté interface). Les PLAFONDS réels sont imposés côté robot
+# par cmd_vel_mux_node (robot_params.yaml) : toute valeur supérieure ici sera écrêtée là-bas.
+speeds:
+  slow: 0.10            # m/s (avant)
+  normal: 0.20          # m/s (avant)
+  reverse_max: 0.10     # m/s (recul maximal)
+  angular: 0.6          # rad/s (à pleine déviation)
+publish_rate_hz: 20
+deadzone: 0.12
+pad_stale_s: 0.3        # manette sans nouvelle donnée depuis > pad_stale_s -> arrêt de session
+mux_mode_grace_s: 1.5   # délai laissé au mux pour passer en MANUAL après l'activation
+snapshot_stale_s: 3.0   # /robot_status plus ancien -> robot considéré déconnecté
+# Composants (noms de /robot_status sans le préfixe isimm/) qui doivent être au niveau OK
+# pour ACTIVER le pilotage manuel, et pour le MAINTENIR (IMU : non bloquante).
+required_components:
+  - lidar_scan
+  - odom_rf2o
+  - tf_odom_base_link
+  - tf_map_odom
+  - safety_node
+  - motor_controller
+  - slam_toolbox
+  - controller_server
+  - planner_server
+  - behavior_server
+  - velocity_smoother
+  - collision_monitor
+  - bt_navigator
+  - waypoint_follower
+  - cmd_vel_mux

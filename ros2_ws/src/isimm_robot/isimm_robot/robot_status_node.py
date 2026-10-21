@@ -6,7 +6,7 @@ Ne loggue que les CHANGEMENTS de niveau.
 
   ERROR : LiDAR, /odom (RF2O), TF odom->base_link, safety_node, motor/Arduino,
           (mapping/navigation) TF map->odom + slam_toolbox,
-          (navigation) nœuds Nav2 non 'active'
+          (navigation) nœuds Nav2 non 'active', flux /cmd_vel_mux (cmd_vel_mux_node) absent
   WARN  : IMU (non fusionnée dans l'odométrie : n'empêche PAS la navigation)
 Paramètre `mode` : base | mapping | navigation.
 """
@@ -53,6 +53,8 @@ class RobotStatusNode(Node):
         self.create_subscription(Odometry, 'odom', lambda m: self._stamp('odom'), 10)
         self.create_subscription(Imu, 'imu', lambda m: self._stamp('imu'), 10)
         self.create_subscription(Twist, 'safe_cmd_vel', lambda m: self._stamp('safe'), 10)
+        if self.mode == 'navigation':
+            self.create_subscription(Twist, 'cmd_vel_mux', lambda m: self._stamp('mux'), 10)
         self.create_subscription(String, 'motor_status', self._motor_cb, 10)
         self.create_subscription(String, 'safety_state', self._safety_cb, 10)
 
@@ -153,6 +155,8 @@ class RobotStatusNode(Node):
 
         if self.mode in ('mapping', 'navigation'):
             items.append(self._tf('tf_map_odom', 'map', 'odom', 2, now))
+            if self.mode == 'navigation':
+                items.append(self._flow('cmd_vel_mux', 'mux', self.to['safe_cmd_timeout'], 2, now))
             for n in self._lc_names:
                 st = self._lc_state[n]
                 if st == 'active':

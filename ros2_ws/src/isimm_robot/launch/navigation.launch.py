@@ -62,6 +62,7 @@ def _localization(context, *args, **kwargs):
 def generate_launch_description():
     pkg = get_package_share_directory('isimm_robot')
     nav2_params = os.path.join(pkg, 'config', 'nav2_params.yaml')
+    robot_params = os.path.join(pkg, 'config', 'robot_params.yaml')
     rviz_cfg = os.path.join(pkg, 'rviz', 'robot.rviz')
 
     base = IncludeLaunchDescription(
@@ -70,6 +71,7 @@ def generate_launch_description():
 
     # Chaîne cmd_vel (aucun chemin direct vers les moteurs) :
     #   controller/behaviors -> cmd_vel_nav -> velocity_smoother -> cmd_vel_smoothed
+    #   -> cmd_vel_mux_node (+ cmd_vel_teleop de l'interface) -> cmd_vel_mux
     #   -> collision_monitor -> cmd_vel -> safety_node -> safe_cmd_vel -> moteurs
     to_nav = [('cmd_vel', 'cmd_vel_nav')]
 
@@ -85,6 +87,9 @@ def generate_launch_description():
         Node(package='nav2_velocity_smoother', executable='velocity_smoother',
              name='velocity_smoother', output='screen',
              parameters=[nav2_params], remappings=to_nav),   # sortie : cmd_vel_smoothed
+        # Seul arbitre AUTO/MANUAL ; ne publie PAS /cmd_vel (le Collision Monitor reste en aval).
+        Node(package='isimm_robot', executable='cmd_vel_mux_node',
+             name='cmd_vel_mux_node', output='screen', parameters=[robot_params]),
         Node(package='nav2_collision_monitor', executable='collision_monitor',
              name='collision_monitor', output='screen', parameters=[nav2_params]),
         Node(package='nav2_bt_navigator', executable='bt_navigator',

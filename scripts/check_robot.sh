@@ -41,7 +41,7 @@ done
 has /esp32_sensor_node && pass "nœud /esp32_sensor_node" || warn "nœud /esp32_sensor_node absent"
 if [ "$MODE" != base ]; then has /slam_toolbox && pass "nœud /slam_toolbox" || fail "/slam_toolbox absent"; fi
 if [ "$MODE" = navigation ]; then
-  for n in controller_server planner_server behavior_server bt_navigator waypoint_follower velocity_smoother collision_monitor; do
+  for n in controller_server planner_server behavior_server bt_navigator waypoint_follower velocity_smoother collision_monitor cmd_vel_mux_node; do
     has "/$n" && pass "nœud /$n" || fail "nœud /$n absent"
   done
 fi
@@ -92,21 +92,34 @@ chk "publishers /odom" "$(pubs /odom)" 1
 chk "publishers /safe_cmd_vel" "$(pubs /safe_cmd_vel)" 1
 if [ "$MODE" = navigation ]; then
   chk "publishers /cmd_vel_nav (controller+behavior)" "$(pubs /cmd_vel_nav)" 2
-  chk "publishers /cmd_vel_smoothed" "$(pubs /cmd_vel_smoothed)" 1
+  chk "publishers /cmd_vel_smoothed (velocity_smoother seul)" "$(pubs /cmd_vel_smoothed)" 1
+  chk "subscribers /cmd_vel_smoothed (cmd_vel_mux_node seul)" "$(subs /cmd_vel_smoothed)" 1
+  chk "publishers /cmd_vel_mux (cmd_vel_mux_node seul)" "$(pubs /cmd_vel_mux)" 1
+  chk "subscribers /cmd_vel_mux (collision_monitor seul)" "$(subs /cmd_vel_mux)" 1
+  tp=$(pubs /cmd_vel_teleop); [ "${tp:-0}" -le 1 ] 2>/dev/null && pass "publishers /cmd_vel_teleop = ${tp:-0} (interface : 0 ou 1)" || fail "publishers /cmd_vel_teleop = ${tp:-?} (attendu 0 ou 1)"
   chk "publishers /cmd_vel (collision_monitor seul)" "$(pubs /cmd_vel)" 1
   chk "subscribers /cmd_vel (safety_node seul)" "$(subs /cmd_vel)" 1
 fi
 
+if [ "$MODE" = navigation ]; then
+  echo "== Multiplexeur de commandes =="
+  hz /cmd_vel_mux 10 fail
+  hz /cmd_vel 10 fail
+  cm=$(timeout 10 ros2 topic echo --once /cmd_vel_mode --field data 2>/dev/null | head -1)
+  case "$cm" in AUTO|AUTO_WAIT|MANUAL) pass "cmd_vel_mode = $cm";; ESTOP) warn "cmd_vel_mode = ESTOP (arrêt d'urgence actif)";;
+    "") fail "cmd_vel_mode : aucun message";; *) fail "cmd_vel_mode = $cm (inattendu)";; esac
+fi
+
 echo "== Moteurs / sécurité =="
-ms=$(timeout 4 ros2 topic echo --once /motor_status --field data 2>/dev/null | head -1)
+ms=$(timeout 10 ros2 topic echo --once /motor_status --field data 2>/dev/null | head -1)
 [ "$ms" = "OK" ] && pass "motor_status = OK (série + Arduino)" || fail "motor_status = '${ms:-aucun}'"
-ss=$(timeout 4 ros2 topic echo --once /safety_state --field data 2>/dev/null | head -1)
+ss=$(timeout 10 ros2 topic echo --once /safety_state --field data 2>/dev/null | head -1)
 case "$ss" in OK) pass "safety_state = OK";; NO_CMD_YET|CMD_TIMEOUT) pass "safety_state = $ss (repos normal)";;
   "") fail "safety_state : aucun message";; *) warn "safety_state = $ss";; esac
 
 echo "== use_sim_time =="
 for n in safety_node motor_controller_node robot_state_publisher; do
-  v=$(timeout 4 ros2 param get "/$n" use_sim_time 2>/dev/null | awk '{print $NF}')
+  v=$(timeout 10 ros2 param get "/$n" use_sim_time 2>/dev/null | awk '{print $NF}')
   [ "$v" = "False" ] && pass "/$n use_sim_time=False" || warn "/$n use_sim_time='${v:-?}'"
 done
 
