@@ -1,4 +1,4 @@
-"""Cerveau conversationnel : chemin rapide sécurité + boucle LLM/outils."""
+"""Cerveau conversationnel : chemin rapide sécurité/navigation + boucle LLM/outils."""
 from __future__ import annotations
 
 import json
@@ -18,12 +18,27 @@ from tools.locations import LocationBook
 
 log = get_logger("AI")
 MSG_TECHNICAL = "Je rencontre un petit problème technique, un instant s'il vous plaît."
+MSG_NO_ACTION = ("Je n'ai lancé aucun déplacement. Si vous voulez que je vous y conduise, "
+                 "dites par exemple : « Va à l'administration ».")
 
 # Chemin rapide déterministe (avant le LLM) : l'arrêt ne dépend jamais de Qwen.
 _STOP_RE = re.compile(r"^(stop|stoppe|stoppe toi|arrete|arrete toi|arret|arret d urgence|halte|"
                       r"urgence|freine)( robot)?( s il (te|vous) plait)?$")
 _CANCEL_RE = re.compile(r"\b(annule|arrete|stoppe|interromps|interrompre)\b.*"
                         r"\b(navigation|deplacement|trajet|destination)\b")
+
+# Ordre de déplacement explicite : « va à X », « emmène-moi à X », « finalement au X ».
+# La destination doit correspondre EXACTEMENT à un lieu connu, sinon c'est le LLM qui traite.
+_FILLERS = {"s", "il", "te", "vous", "plait", "finalement", "plutot", "non", "alors", "bon",
+            "robot", "maintenant", "ok"}
+_NAV_VERBS = ("va", "vas", "aller", "allez", "emmene moi", "emmenez moi", "conduis moi",
+              "conduisez moi", "amene moi", "amenez moi", "rends toi", "dirige toi")
+_PREPOSITIONS = {"a", "au", "aux", "vers", "chez"}
+
+# Garde anti-mensonge : annonce d'un déplacement sans navigate_to réussi.
+_CLAIM_RE = re.compile(r"\b(je vais (vous )?(envoyer|emmener|conduire|guider|accompagner|me rendre|aller|y aller)"
+                       r"|j y vais|je me dirige|je me rends|je pars|en route"
+                       r"|je vous (emmene|conduis|guide|accompagne))\b")
 
 
 class Assistant:
@@ -63,13 +78,41 @@ class Assistant:
         if _CANCEL_RE.search(norm):
             log.info("Annulation reconnue -> cancel_navigation (sans LLM)")
             return self._registry.execute("cancel_navigation", {})["message"]
+        target = self._navigation_target(norm)
+        if target:
+            log.info("Ordre de déplacement reconnu -> navigate_to(%s) (sans LLM)", target)
+            return self._registry.execute("navigate_to", {"location": target})["message"]
         return None
+
+    def _navigation_target(self, norm: str) -> str | None:
+        words = norm.split()
+        while words and words[0] in _FILLERS:
+            words.pop(0)
+        while words and words[-1] in _FILLERS:
+            words.pop()
+        text = " ".join(words)
+        verb = next((v for v in _NAV_VERBS if text.startswith(v + " ")), None)
+        if verb:
+            rest = text[len(verb) + 1:]
+        elif words and words[0] in _PREPOSITIONS:
+            rest = text
+        else:
+            return None
+        loc = self._locations.resolve(rest)
+        return loc.key if loc else None
+
+    def _guard(self, text: str, navigated: bool, last_message: str | None) -> str:
+        if not navigated and _CLAIM_RE.search(normalize(text)):
+            log.warning("Réponse annonçant un déplacement sans navigate_to réussi : remplacée")
+            return last_message or MSG_NO_ACTION
+        return text
 
     def _converse(self, text: str) -> str:
         messages: list[dict] = [{"role": "system", "content": self._system},
                                 *self._conv.messages(), {"role": "user", "content": text}]
         tools = self._registry.schemas()
         last_message: str | None = None
+        navigated = False
         for _ in range(self._s.max_tool_rounds):
             log.info("Processing request")
             try:
@@ -78,11 +121,14 @@ class Assistant:
                 log.error("LLM indisponible : %s", exc)
                 return MSG_TECHNICAL
             if not reply.tool_calls:
-                return reply.content or last_message or "Je n'ai pas pu traiter votre demande."
+                final = reply.content or last_message or "Je n'ai pas pu traiter votre demande."
+                return self._guard(final, navigated, last_message)
             messages.append(reply.as_message())
             for call in reply.tool_calls[:3]:
                 result = self._registry.execute(call.name, call.arguments)
                 last_message = result.get("message", last_message)
+                if call.name == "navigate_to" and result.get("ok"):
+                    navigated = True
                 messages.append({"role": "tool", "content": json.dumps(result, ensure_ascii=False)})
         return last_message or "Je n'ai pas pu terminer cette demande."
 
@@ -101,4 +147,4 @@ class Assistant:
             return
         log.info("Annonce : %s", text)
         if self._announce:
-            self._announce(text) 
+            self._announce(text)

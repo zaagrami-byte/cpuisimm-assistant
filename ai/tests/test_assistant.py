@@ -20,7 +20,9 @@ def build(llm, robot=None, dry_run=False):
 
 class TestAssistant(unittest.TestCase):
     def test_stop_uses_fast_path_without_llm(self):
-        assistant, robot = build(FakeLLM())   # FakeLLM sans réponse : lèverait si appelé
+        robot = FakeRobot()
+        robot.moving = True   # robot en mouvement : l'arrêt d'urgence doit partir
+        assistant, robot = build(FakeLLM(), robot)   # FakeLLM vide : lèverait si appelé
         assistant.handle("Arrête !")
         self.assertIn(("estop",), robot.calls)
 
@@ -35,7 +37,7 @@ class TestAssistant(unittest.TestCase):
     def test_tool_loop_executes_navigation_then_answers(self):
         llm = FakeLLM(call("navigate_to", location="administration"), LLMReply("Je vais à l'administration."))
         assistant, robot = build(llm)
-        self.assertEqual(assistant.handle("Va à l'administration."), "Je vais à l'administration.")
+        self.assertEqual(assistant.handle("Je voudrais aller à l'administration."), "Je vais à l'administration.")
         self.assertEqual(robot.calls, [("navigate", "administration")])
 
     def test_hallucinated_tool_is_refused_and_reported_to_llm(self):

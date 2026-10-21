@@ -50,8 +50,8 @@ class TestSegmenter(unittest.TestCase):
         seg = segmenter([False] * 200)
         self.assertTrue(all(seg.feed(b"\x00" * FRAME) is None for _ in range(200)))
 
-    def test_short_blip_dropped(self):
-        flags = [True] * 15 + [False] * 60
+    def test_short_blip_never_triggers(self):
+        flags = [True] * 8 + [False] * 60
         seg, out = segmenter(flags), None
         for _ in flags:
             out = seg.feed(b"\x01\x00" * (FRAME // 2)) or out

@@ -14,7 +14,7 @@ from .model import PadState, Snapshot
 CONFIG_DIR = Path(__file__).resolve().parent / "config"
 HARD_MAX_LINEAR = 0.30      # l'interface refuse une config au-delà (le robot écrête de toute façon)
 HARD_MAX_ANGULAR = 1.0
-OK_SAFETY = ("OK",)
+OK_SAFETY = ("OK", "NO_CMD_YET", "CMD_TIMEOUT")
 
 
 @dataclass(frozen=True)

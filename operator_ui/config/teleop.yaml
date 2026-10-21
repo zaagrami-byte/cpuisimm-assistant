@@ -22,7 +22,6 @@ required_components:
   - slam_toolbox
   - controller_server
   - planner_server
-  - behavior_server
   - velocity_smoother
   - collision_monitor
   - bt_navigator
