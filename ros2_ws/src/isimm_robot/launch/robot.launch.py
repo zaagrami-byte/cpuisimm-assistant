@@ -50,7 +50,8 @@ def generate_launch_description():
              parameters=[robot_description, params], output='screen'),
 
         Node(package='rplidar_ros', executable='rplidar_composition',
-             name='rplidar_node', parameters=[params], output='screen'),
+             name='rplidar_node', parameters=[params], output='screen',
+             remappings=[('scan', 'scan_raw')]),
 
         # RF2O : PAS de name= (le remap __node s'appliquerait aux 2 nœuds du process).
         # Nœud réel : CLaserOdometry2DNode ; paramètres lus dans robot_params.yaml.
@@ -71,4 +72,11 @@ def generate_launch_description():
         Node(package='isimm_robot', executable='robot_status_node',
              name='robot_status_node', parameters=[params, {'mode': mode}],
              output='screen'),
+	Node(
+    package='isimm_robot',
+    executable='scan_self_filter',
+    name='scan_self_filter',
+    parameters=[params],
+    output='screen',
+),
     ])

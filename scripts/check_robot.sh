@@ -95,7 +95,7 @@ if [ "$MODE" = navigation ]; then
   chk "publishers /cmd_vel_smoothed (velocity_smoother seul)" "$(pubs /cmd_vel_smoothed)" 1
   chk "subscribers /cmd_vel_smoothed (cmd_vel_mux_node seul)" "$(subs /cmd_vel_smoothed)" 1
   chk "publishers /cmd_vel_mux (cmd_vel_mux_node seul)" "$(pubs /cmd_vel_mux)" 1
-  chk "subscribers /cmd_vel_mux (collision_monitor seul)" "$(subs /cmd_vel_mux)" 1
+  chk "subscribers /cmd_vel_mux (collision_monitor + robot_status_node)" "$(subs /cmd_vel_mux)" 2
   tp=$(pubs /cmd_vel_teleop); [ "${tp:-0}" -le 1 ] 2>/dev/null && pass "publishers /cmd_vel_teleop = ${tp:-0} (interface : 0 ou 1)" || fail "publishers /cmd_vel_teleop = ${tp:-?} (attendu 0 ou 1)"
   chk "publishers /cmd_vel (collision_monitor seul)" "$(pubs /cmd_vel)" 1
   chk "subscribers /cmd_vel (safety_node seul)" "$(subs /cmd_vel)" 1

@@ -26,6 +26,7 @@ setup(
     license='MIT',
     entry_points={
         'console_scripts': [
+            'scan_self_filter = isimm_robot.scan_self_filter:main',
             'motor_controller_node = isimm_robot.motor_controller_node:main',
             'esp32_sensor_node = isimm_robot.esp32_sensor_node:main',
             'safety_node = isimm_robot.safety_node:main',

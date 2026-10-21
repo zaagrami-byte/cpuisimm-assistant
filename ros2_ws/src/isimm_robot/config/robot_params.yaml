@@ -96,3 +96,14 @@ robot_status_node:
 robot_state_publisher:
   ros__parameters:
     use_sim_time: false
+
+scan_self_filter:
+  ros__parameters:
+    input_topic: scan_raw
+    output_topic: scan
+    laser_x: 0.0
+    laser_y: 0.0
+    box_half_length: 0.285
+    box_half_width: 0.20
+    margin: 0.02
+    min_range: 0.0
