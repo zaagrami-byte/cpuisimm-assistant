@@ -95,8 +95,8 @@ Préparer l'environnement Python (à faire une première fois, puis le réutilis
 cd ~/Desktop/isimm
 source /opt/ros/jazzy/setup.bash
 source ~/Desktop/isimm/ros2_ws/install/setup.bash
-python3 -m venv --system-site-packages operator_ui/.venv
-source operator_ui/.venv/bin/activate
+python3 -m venv --system-site-packages operator_ui/venv
+source operator_ui/venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -r operator_ui/requirements.txt
 ```
@@ -107,7 +107,7 @@ python -m pip install -r operator_ui/requirements.txt
 cd ~/Desktop/isimm
 source /opt/ros/jazzy/setup.bash
 source ~/Desktop/isimm/ros2_ws/install/setup.bash
-source operator_ui/.venv/bin/activate
+source operator_ui/venv/bin/activate
 python -m operator_ui --check-gamepad
 ```
 
