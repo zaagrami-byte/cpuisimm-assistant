@@ -67,6 +67,23 @@ safety_node:
     min_valid_range: 0.15
     warn_period: 5.0
 
+# Multiplexeur AUTO/MANUAL (navigation.launch.py uniquement). Plafonds manuels CÔTÉ ROBOT :
+# ils doivent rester <= max_linear_speed / max_angular_speed de safety_node et motor_controller.
+cmd_vel_mux_node:
+  ros__parameters:
+    publish_rate: 20.0
+    auto_max_linear: 0.30          # = Nav2 (velocity_smoother)
+    auto_max_angular: 1.0
+    manual_max_forward: 0.20
+    manual_max_reverse: 0.10
+    manual_max_angular: 0.6
+    manual_cmd_timeout: 0.3        # s : commande manuelle périmée -> sortie nulle (jamais AUTO)
+    manual_session_timeout: 0.5    # s : heartbeat /manual_session perdu -> fin de session
+    auto_cmd_timeout: 0.5
+    auto_resume_gap: 0.5           # s de silence Nav2 exigés avant de ré-autoriser AUTO
+    manual_accel_linear: 0.4       # m/s^2 (montée uniquement ; l'arrêt est immédiat)
+    manual_accel_angular: 1.5
+
 robot_status_node:
   ros__parameters:
     scan_timeout: 2.0

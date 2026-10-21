@@ -29,6 +29,7 @@ setup(
             'motor_controller_node = isimm_robot.motor_controller_node:main',
             'esp32_sensor_node = isimm_robot.esp32_sensor_node:main',
             'safety_node = isimm_robot.safety_node:main',
+            'cmd_vel_mux_node = isimm_robot.cmd_vel_mux_node:main',
             'robot_status_node = isimm_robot.robot_status_node:main',
         ],
     },
